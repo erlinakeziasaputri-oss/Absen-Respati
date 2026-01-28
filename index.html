@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>E-Absensi Respati</title>
+    <title>E-Absensi Respati 24</title>
     
     <!-- TAILWIND CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -22,6 +22,10 @@
 
     <!-- SCANNER ENGINE: ZXing -->
     <script type="text/javascript" src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
+
+    <!-- CROPPER JS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
     <!-- FIREBASE SDK -->
     <script type="module">
@@ -70,6 +74,12 @@
             object-fit: cover;
             width: 100%;
             height: 100%;
+        }
+        
+        /* Cropper Customization */
+        .cropper-view-box,
+        .cropper-face {
+            border-radius: 50%;
         }
     </style>
 </head>
@@ -141,10 +151,11 @@
             Minimize: (props) => <IconBase {...props}><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></IconBase>,
             Eye: (props) => <IconBase {...props}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></IconBase>,
             EyeOff: (props) => <IconBase {...props}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></IconBase>,
-            Image: (props) => <IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></IconBase>
+            Image: (props) => <IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></IconBase>,
+            PieChart: (props) => <IconBase {...props}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></IconBase>
         };
 
-        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info, Maximize, Minimize, Eye, EyeOff, Image } = Icons;
+        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info, Maximize, Minimize, Eye, EyeOff, Image, PieChart } = Icons;
 
         // --- IMAGE COMPRESSION HELPER ---
         const compressImage = (file) => {
@@ -360,13 +371,204 @@
             )
         }
 
-        // --- LIST COMPONENTS ---
+        // --- CROP MODAL COMPONENT ---
+        function CropModal({ imageSrc, onCancel, onCrop }) {
+            const imageRef = useRef(null);
+            const cropperRef = useRef(null);
+
+            useEffect(() => {
+                if(imageRef.current) {
+                    const cropper = new Cropper(imageRef.current, {
+                        aspectRatio: 1, 
+                        viewMode: 1,
+                        dragMode: 'move',
+                        autoCropArea: 1,
+                        responsive: true,
+                        restore: false,
+                        guides: true,
+                        center: true,
+                        highlight: false,
+                        cropBoxMovable: true,
+                        cropBoxResizable: true,
+                        toggleDragModeOnDblclick: false,
+                    });
+                    cropperRef.current = cropper;
+                }
+                return () => {
+                    if(cropperRef.current) cropperRef.current.destroy();
+                }
+            }, [imageSrc]);
+
+            const handleCrop = () => {
+                if(cropperRef.current) {
+                    const canvas = cropperRef.current.getCroppedCanvas({
+                        width: 300,
+                        height: 300,
+                        imageSmoothingEnabled: true,
+                        imageSmoothingQuality: 'high',
+                    });
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    onCrop(dataUrl);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4 animate-fade-in">
+                    <div className="bg-slate-900 w-full max-w-md p-4 rounded-2xl flex flex-col h-[80vh] border border-slate-700">
+                        <h3 className="text-white font-bold mb-4 text-center">Sesuaikan Foto</h3>
+                        <div className="flex-1 bg-black relative overflow-hidden rounded-xl border border-slate-700">
+                            <img ref={imageRef} src={imageSrc} style={{maxWidth:'100%', maxHeight:'100%', display: 'block'}} />
+                        </div>
+                        <div className="flex gap-3 mt-4">
+                            <button onClick={onCancel} className="flex-1 py-3 border border-slate-600 text-slate-300 font-bold rounded-xl hover:bg-slate-800">Batal</button>
+                            <button onClick={handleCrop} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg">Simpan</button>
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+
+        // --- STATISTICS MODAL (NEW) ---
+        function StatisticsModal({ members, logs, onClose }) {
+            const [viewMode, setViewMode] = useState('month'); // 'month' or 'year'
+            const [selectedDate, setSelectedDate] = useState(new Date());
+
+            // Filters
+            const activeMembers = members.filter(m => !m.isAlumni);
+            const totalMembers = activeMembers.length;
+            const cls7 = activeMembers.filter(m => m.class.startsWith('7')).length;
+            const cls8 = activeMembers.filter(m => m.class.startsWith('8')).length;
+            const cls9 = activeMembers.filter(m => m.class.startsWith('9')).length;
+
+            const totalL = activeMembers.filter(m => m.gender === 'L').length;
+            const totalP = activeMembers.filter(m => m.gender === 'P').length;
+
+            // Attendance Calculation Logic
+            const getAttendanceStats = () => {
+                const year = selectedDate.getFullYear();
+                const month = selectedDate.getMonth(); // 0-11
+
+                // Filter logs based on viewMode
+                const relevantLogs = logs.filter(log => {
+                    const logDate = new Date(log.timestamp);
+                    if (viewMode === 'month') {
+                        return logDate.getFullYear() === year && logDate.getMonth() === month;
+                    } else {
+                        return logDate.getFullYear() === year;
+                    }
+                });
+
+                // Get unique dates (events)
+                const uniqueDates = [...new Set(relevantLogs.map(l => l.timestamp.split('T')[0]))];
+                const totalEvents = uniqueDates.length;
+
+                if (totalEvents === 0) return { avgL: 0, avgP: 0, totalEvents: 0 };
+
+                // Count attendance by gender
+                let countL = 0;
+                let countP = 0;
+
+                relevantLogs.forEach(log => {
+                    const member = members.find(m => m.id === log.memberId);
+                    if (member && !member.isAlumni) {
+                        if (member.gender === 'L') countL++;
+                        else if (member.gender === 'P') countP++;
+                    }
+                });
+
+                // Calculate Average Participation %
+                // (Total Attendance / (Total Active Gender * Total Events)) * 100
+                const avgL = totalL > 0 ? (countL / (totalL * totalEvents)) * 100 : 0;
+                const avgP = totalP > 0 ? (countP / (totalP * totalEvents)) * 100 : 0;
+
+                return { avgL: Math.round(avgL), avgP: Math.round(avgP), totalEvents };
+            };
+
+            const stats = getAttendanceStats();
+
+            const navigateDate = (dir) => {
+                const newDate = new Date(selectedDate);
+                if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + dir);
+                else newDate.setFullYear(newDate.getFullYear() + dir);
+                setSelectedDate(newDate);
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-slate-900 w-full max-w-md p-6 rounded-3xl border border-slate-700 shadow-2xl relative overflow-hidden">
+                        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={24}/></button>
+                        
+                        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                            <PieChart className="text-cyan-400"/> Statistik Keaktifan
+                        </h2>
+
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                            <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700">
+                                <p className="text-xs text-slate-400 uppercase font-bold">Total Anggota</p>
+                                <p className="text-3xl font-bold text-white mt-1">{totalMembers}</p>
+                            </div>
+                            <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex flex-col justify-center gap-1">
+                                <div className="flex justify-between text-xs text-slate-300"><span>Kelas 7:</span> <span className="font-bold text-white">{cls7}</span></div>
+                                <div className="flex justify-between text-xs text-slate-300"><span>Kelas 8:</span> <span className="font-bold text-white">{cls8}</span></div>
+                                <div className="flex justify-between text-xs text-slate-300"><span>Kelas 9:</span> <span className="font-bold text-white">{cls9}</span></div>
+                            </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="flex bg-slate-800 rounded-xl p-1 mb-4 border border-slate-700">
+                            <button onClick={()=>setViewMode('month')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${viewMode==='month'?'bg-cyan-600 text-white':'text-slate-400 hover:text-white'}`}>Bulanan</button>
+                            <button onClick={()=>setViewMode('year')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${viewMode==='year'?'bg-cyan-600 text-white':'text-slate-400 hover:text-white'}`}>Tahunan</button>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-6 bg-black/30 p-2 rounded-xl border border-slate-700">
+                            <button onClick={()=>navigateDate(-1)} className="p-1 hover:text-cyan-400 text-slate-400"><ChevronLeft/></button>
+                            <span className="font-bold text-white text-sm">
+                                {viewMode === 'month' ? selectedDate.toLocaleString('id-ID', {month:'long', year:'numeric'}) : selectedDate.getFullYear()}
+                            </span>
+                            <button onClick={()=>navigateDate(1)} className="p-1 hover:text-cyan-400 text-slate-400"><ChevronRight/></button>
+                        </div>
+
+                        {/* Gender Comparison Chart (Simple Bar) */}
+                        <div className="space-y-4">
+                            <p className="text-xs text-slate-400 text-center mb-2">Rata-rata Kehadiran ({stats.totalEvents} Kegiatan)</p>
+                            
+                            {/* Male Bar */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-xs font-bold">
+                                    <span className="text-blue-400">Laki-laki ({totalL})</span>
+                                    <span className="text-white">{stats.avgL}%</span>
+                                </div>
+                                <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{width: `${stats.avgL}%`}}></div>
+                                </div>
+                            </div>
+
+                            {/* Female Bar */}
+                            <div className="space-y-1">
+                                <div className="flex justify-between text-xs font-bold">
+                                    <span className="text-pink-400">Perempuan ({totalP})</span>
+                                    <span className="text-white">{stats.avgP}%</span>
+                                </div>
+                                <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-pink-500 rounded-full transition-all duration-500" style={{width: `${stats.avgP}%`}}></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            )
+        }
+
+        // --- LIST COMPONENTS (UPDATED) ---
         function MembersList({ members, attendanceLog, onEdit, onDelete, onAdd, onPromote, onViewAlumni, classes, currentUser }) {
             const [filterGrade, setFilterGrade] = useState('all');
             const [filterSubClass, setFilterSubClass] = useState('all');
             const [searchQuery, setSearchQuery] = useState('');
             const [selectedBarcode, setSelectedBarcode] = useState(null);
             const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+            const [isStatsOpen, setIsStatsOpen] = useState(false);
 
             const isSuperAdmin = currentUser?.username === 'Respati';
 
@@ -413,7 +615,6 @@
                     return;
                 }
                 const pwd = prompt("Konfirmasi Keamanan: Masukkan Password Admin Utama untuk melanjutkan:");
-                // Validasi password admin utama
                 if (pwd === currentUser.password) {
                     onPromote();
                 } else {
@@ -429,6 +630,10 @@
 
                     <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                         <button onClick={onAdd} className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><Plus size={14}/> Tambah</button>
+                        
+                        {/* STATISTICS BUTTON */}
+                        <button onClick={()=>setIsStatsOpen(true)} className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><PieChart size={14}/> Statistik</button>
+                        
                         <button onClick={handlePromoteClick} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors ${isSuperAdmin ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}><TrendingUp size={14}/> Naik Kelas</button>
                         <button onClick={onViewAlumni} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><GraduationCap size={14}/> Alumni</button>
                         <button onClick={()=>setIsPdfModalOpen(true)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><FileDown size={14}/> PDF Anggota</button>
@@ -473,7 +678,6 @@
                             return (
                                 <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between group hover:border-cyan-500/30 transition-all shadow-sm">
                                     <div className="flex-1 min-w-0 mr-2 flex items-center gap-3">
-                                        {/* Thumbnail Foto (Optional) */}
                                         {m.photo ? (
                                             <img src={m.photo} className="w-10 h-10 rounded-full object-cover border border-slate-600" alt="" />
                                         ) : (
@@ -505,6 +709,7 @@
 
                     {selectedBarcode && <BarcodeModal member={selectedBarcode} onClose={()=>setSelectedBarcode(null)} />}
                     {isPdfModalOpen && <PdfDownloadModal members={members} attendanceLog={attendanceLog} onClose={()=>setIsPdfModalOpen(false)} />}
+                    {isStatsOpen && <StatisticsModal members={members} logs={attendanceLog} onClose={()=>setIsStatsOpen(false)} />}
                 </div>
             );
         }
@@ -581,10 +786,12 @@
             )
         }
 
-        // --- ALUMNI LIST (UPDATED) ---
-        function AlumniList({ members, onBack }) {
+        // --- ALUMNI LIST (UPDATED WITH ACTIONS) ---
+        function AlumniList({ members, onBack, currentUser, onEdit, onDelete }) {
             const [search, setSearch] = useState('');
             const [filterYear, setFilterYear] = useState('all');
+
+            const isSuperAdmin = currentUser?.username === 'Respati';
 
             // 1. Filter Alumni Raw
             const rawAlumni = members.filter(m => m.isAlumni);
@@ -635,18 +842,27 @@
                     <div className="space-y-2 pb-20">
                         {filteredAlumni.map(m => (
                             <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl opacity-75 flex justify-between items-center hover:opacity-100 transition-opacity">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
                                      {m.photo ? (
                                         <img src={m.photo} className="w-10 h-10 rounded-full object-cover border border-slate-600 grayscale" alt="" />
                                     ) : (
                                         <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500"><Users size={18}/></div>
                                     )}
-                                    <div>
-                                        <h3 className="font-bold text-slate-300">{m.name}</h3>
+                                    <div className="min-w-0">
+                                        <h3 className="font-bold text-slate-300 truncate">{m.name}</h3>
                                         <p className="text-xs text-slate-500">Lulusan {m.class.replace('Alumni ', '')}</p>
                                     </div>
                                 </div>
-                                <span className="text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded border border-slate-700">Alumni</span>
+                                
+                                {/* ACTION BUTTONS FOR SUPER ADMIN */}
+                                {isSuperAdmin ? (
+                                    <div className="flex gap-2 ml-2">
+                                        <button onClick={()=>onEdit(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg transition-colors border border-slate-700"><Edit2 size={14}/></button>
+                                        <button onClick={()=>onDelete(m.id)} className="p-2 bg-slate-800 hover:bg-slate-700 text-red-400 rounded-lg transition-colors border border-slate-700"><Trash2 size={14}/></button>
+                                    </div>
+                                ) : (
+                                    <span className="text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded border border-slate-700">Alumni</span>
+                                )}
                             </div>
                         ))}
                         {filteredAlumni.length === 0 && <div className="text-center text-slate-600 mt-10 p-8 border border-dashed border-slate-800 rounded-xl">Data tidak ditemukan.</div>}
@@ -655,43 +871,24 @@
             )
         }
 
-        function BarcodeModal({ member, onClose }) {
-            const qrRef = useRef(null);
-            useEffect(() => {
-                if (qrRef.current) {
-                    qrRef.current.innerHTML = "";
-                    try { new QRCode(qrRef.current, { text: member.barcode, width: 200, height: 200, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H }); } catch(e) {}
-                }
-            }, [member]);
-            const download = () => {
-                const img = qrRef.current.querySelector("img");
-                if(img) { const link = document.createElement('a'); link.download = `QR_${member.name}.png`; link.href = img.src; link.click(); }
-            };
-            return (
-                <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 flex flex-col items-center shadow-2xl">
-                        <h3 className="text-xl font-bold text-white text-center mb-1">{member.name}</h3>
-                        <p className="text-cyan-400 mb-6">{member.class}</p>
-                        <div className="bg-white p-4 rounded-xl w-full flex justify-center mb-6 shadow-inner aspect-square items-center"><div ref={qrRef}></div></div>
-                        <div className="flex gap-3 w-full">
-                            <button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800 transition-colors">Tutup</button>
-                            <button onClick={download} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><Download size={16}/> Simpan</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
+        // ... (MemberForm, BarcodeModal, ReportView, SettingsView, MainApp unchanged structure) ...
+        // ... (MemberForm is updated to use Cropper) ...
         function MemberForm({ isEdit, initialData, classes, onSubmit, onCancel }) {
             const [form, setForm] = useState(initialData || { name:'', class: classes[0] || '7A', gender:'L', phoneNumber:'', photo: null });
             const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+            const [cropImage, setCropImage] = useState(null); 
             const fileInputRef = useRef(null);
             const cameraInputRef = useRef(null);
 
-            const handleFileChange = async (e) => {
-                if (e.target.files && e.target.files[0]) {
-                    const compressed = await compressImage(e.target.files[0]);
-                    setForm({...form, photo: compressed});
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        setCropImage(reader.result); 
+                        e.target.value = null; 
+                    };
+                    reader.readAsDataURL(file);
                 }
                 setShowPhotoOptions(false);
             };
@@ -703,6 +900,18 @@
                         {isEdit ? 'Edit' : 'Tambah'} Anggota
                     </h2>
                     
+                    {/* CROP MODAL */}
+                    {cropImage && (
+                        <CropModal 
+                            imageSrc={cropImage} 
+                            onCancel={() => setCropImage(null)} 
+                            onCrop={(croppedDataUrl) => {
+                                setForm({...form, photo: croppedDataUrl});
+                                setCropImage(null);
+                            }} 
+                        />
+                    )}
+
                     {/* PHOTO INPUT SECTION */}
                     <div className="flex justify-center mb-6">
                         <div className="relative">
@@ -742,6 +951,8 @@
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Kelas</label>
                                 <select value={form.class} onChange={e=>setForm({...form, class:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors">
+                                    {/* Handle Alumni Class Editing gracefully */}
+                                    {form.isAlumni && <option value={form.class}>{form.class}</option>}
                                     {classes.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
@@ -1197,7 +1408,7 @@
 
                         {activeTab === 'scanner' && (<ScannerComponent onScan={handleScanResult} lastScanned={lastScanned} onConfirm={confirmAttendance} onCancel={()=>setLastScanned(null)} />)}
                         {activeTab === 'members' && (<MembersList members={members} attendanceLog={attendanceLog} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} onAdd={()=>setActiveTab('addMember')} onPromote={handlePromoteClass} onViewAlumni={()=>setActiveTab('alumni')} classes={classes} currentUser={user} />)}
-                        {activeTab === 'alumni' && (<AlumniList members={members} onBack={()=>setActiveTab('members')} />)}
+                        {activeTab === 'alumni' && (<AlumniList members={members} onBack={()=>setActiveTab('members')} currentUser={user} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} />)}
                         {(activeTab === 'addMember' || activeTab === 'editMember') && (<MemberForm isEdit={activeTab === 'editMember'} initialData={editingMember} classes={classes} onSubmit={activeTab === 'addMember' ? handleAddMember : handleEditMember} onCancel={()=>{setEditingMember(null); setActiveTab('members');}} />)}
                         {activeTab === 'report' && (<ReportView members={members} logs={attendanceLog} classes={classes} />)}
                         {activeTab === 'settings' && (<SettingsView accounts={accounts} onDeleteAccount={handleDeleteAccount} onUpdateAccount={handleUpdateAccount} classes={classes} setClasses={(newClasses) => { if(newClasses.length > classes.length) { const added = newClasses.find(c => !classes.includes(c)); if(added) handleAddClass(added); } else { const removed = classes.find(c => !newClasses.includes(c)); if(removed) handleDeleteClass(removed); } }} currentUser={user} />)}

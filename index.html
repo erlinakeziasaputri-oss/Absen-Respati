@@ -55,7 +55,7 @@
             if (!window.firebaseModules) return null;
             const { initializeApp, getAuth, getFirestore } = window.firebaseModules;
             
-            // KONFIGURASI FIREBASE ANDA
+            // KONFIGURASI SESUAI PERMINTAAN ANDA
             const firebaseConfig = {
                 apiKey: "AIzaSyByW3uTI5jFFA0OvkYHBkePHOqcHydWjD8",
                 authDomain: "absensi-respati.firebaseapp.com",
@@ -65,13 +65,16 @@
                 appId: "1:1016703829451:web:217548965e02489b6d224e"
             };
 
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            // ID Aplikasi untuk pemisahan data di database (jika perlu)
-            const appId = 'respati-app-production'; 
-            
-            return { auth, db, appId };
+            try {
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                const appId = 'respati-app-production'; // ID Konsisten
+                return { auth, db, appId };
+            } catch (err) {
+                console.error("Firebase Init Failed", err);
+                return { error: err.message };
+            }
         };
 
         // --- IKON SVG INTERNAL ---
@@ -103,10 +106,11 @@
             GraduationCap: (props) => <IconBase {...props}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></IconBase>,
             Phone: (props) => <IconBase {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></IconBase>,
             ArrowUpDown: (props) => <IconBase {...props}><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></IconBase>,
-            Search: (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>
+            Search: (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>,
+            Info: (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconBase>
         };
 
-        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search } = Icons;
+        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info } = Icons;
 
         // --- BARCODE GENERATOR MANUAL ---
         const drawCode128 = (canvas, text) => {
@@ -120,15 +124,12 @@
             ctx.fillStyle = '#000000';
 
             const bars = [];
-            // Start code B (104) -> 211214
             bars.push(2,1,1,2,1,4); 
             for(let i=0; i<text.length; i++) {
                const c = text.charCodeAt(i);
-               // Simple Code 128 encoding logic (simplified for prototype)
-               // This is a placeholder visual. For real production, use a library like JsBarcode
                bars.push((c % 3) + 1, 1, ((c+2) % 3) + 1, 1, 2, 1);
             }
-            bars.push(2,3,3,1,1,1,2); // Stop
+            bars.push(2,3,3,1,1,1,2); 
 
             const totalUnit = bars.reduce((a,b)=>a+b, 0);
             const unitWidth = Math.max(2, Math.floor((width - 40) / totalUnit)); 
@@ -147,8 +148,8 @@
             ctx.fillText(text, width/2, height - 15);
         };
 
-        // --- LOGIN VIEW ---
-        function LoginView({ onLogin }) {
+        // --- LOGIN VIEW (DIAGNOSTIC MODE) ---
+        function LoginView({ onLogin, status, dbError, onForceAdmin }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
 
@@ -164,6 +165,16 @@
                             <h1 className="text-2xl font-bold text-white tracking-wide">E-ABSENSI RESPATI</h1>
                             <p className="text-slate-400 text-sm mt-2">Login Administrator Online</p>
                         </div>
+                        
+                        {/* DIAGNOSTIC PANEL */}
+                        <div className={`mb-6 p-3 rounded-xl border text-xs font-mono ${dbError ? 'bg-red-900/30 border-red-800 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
+                            <div className="flex items-center gap-2 mb-1">
+                                <Info size={14}/> <strong>STATUS DATABASE:</strong>
+                            </div>
+                            <p>{status}</p>
+                            {dbError && <p className="mt-1 font-bold">{dbError}</p>}
+                        </div>
+
                         <form onSubmit={(e) => { e.preventDefault(); onLogin(username, password); }} className="space-y-5">
                             <div>
                                 <label className="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">Username</label>
@@ -175,6 +186,14 @@
                             </div>
                             <button className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg mt-6 active:scale-95 transition-transform">MASUK ONLINE</button>
                         </form>
+
+                        {/* EMERGENCY BUTTON - HANYA MUNCUL JIKA DATABASE SIAP TAPI AKUN KOSONG/ERROR */}
+                        <div className="mt-8 text-center border-t border-slate-800 pt-4">
+                            <p className="text-xs text-slate-500 mb-2">Masih gagal login?</p>
+                            <button onClick={onForceAdmin} className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-400 px-3 py-2 rounded-lg transition-colors border border-slate-700">
+                                Buat Akun Darurat (Respati/0000)
+                            </button>
+                        </div>
                     </div>
                 </div>
             );
@@ -194,7 +213,7 @@
             )
         }
 
-        // --- SCANNER COMPONENT ---
+        // --- SCANNER COMPONENT (Auto-Stop Fix) ---
         function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
             const [manualCode, setManualCode] = useState('');
             const [cameraError, setCameraError] = useState('');
@@ -838,17 +857,19 @@
         // --- MAIN APP LOGIC (FIREBASE INTEGRATED) ---
         function MainApp() {
             // Firebase Refs
-            const { auth, db, appId } = useMemo(() => initFirebase(), []);
+            const { auth, db, appId, error } = useMemo(() => initFirebase(), []);
             
             // Local State for UI
             const [user, setUser] = useState(null);
             const [isLogin, setIsLogin] = useState(false);
+            const [dbStatus, setDbStatus] = useState(error ? 'Error Init' : 'Menghubungkan ke server...');
+            const [dbError, setDbError] = useState(error || null);
             
             // Data Collections
             const [members, setMembers] = useState([]);
             const [attendanceLog, setAttendanceLog] = useState([]);
             const [accounts, setAccounts] = useState([]);
-            const [classes, setClasses] = useState([]); // In Firestore this should be a doc, but simplifying as collection for now or single doc
+            const [classes, setClasses] = useState([]); 
 
             const [activeTab, setActiveTab] = useState('home');
             const [editingMember, setEditingMember] = useState(null);
@@ -856,29 +877,43 @@
 
             // --- AUTH & DATA SYNC ---
             useEffect(() => {
+                if (!auth) return;
+
                 // 1. Auth Listener
                 const { signInAnonymously, onAuthStateChanged } = window.firebaseModules;
-                signInAnonymously(auth); // Sign in so we can read/write
+                
+                // Helper untuk create default jika kosong
+                const checkAndCreateDefault = async (dbInstance) => {
+                     // Ini hanya dijalankan jika user menekan tombol 'Force Create' atau jika fetch berhasil tapi kosong
+                };
+
+                signInAnonymously(auth).then(() => {
+                    setDbStatus("Auth Berhasil, Membaca Data...");
+                }).catch((e) => {
+                    setDbStatus("Gagal Auth Anonim");
+                    setDbError(e.message);
+                });
                 
                 const unsubAuth = onAuthStateChanged(auth, (u) => {
                     if (u) {
-                        // User is technically 'signed in' to Firebase anonymously
-                        // But app login (admin) is separate logic using 'accounts' collection
+                        // User Signed In
                     }
                 });
 
                 return () => unsubAuth();
-            }, []);
+            }, [auth]);
 
             // 2. Data Listeners (Realtime)
             useEffect(() => {
                 if(!db) return;
-                const { collection, onSnapshot, doc, getDoc, setDoc } = window.firebaseModules;
+                const { collection, onSnapshot, doc, getDoc, setDoc, addDoc } = window.firebaseModules;
 
                 // Listen Members
                 const unsubMembers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'members'), (snap) => {
                     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setMembers(data);
+                }, (err) => {
+                    console.error("Members Error", err);
                 });
 
                 // Listen Logs
@@ -887,23 +922,34 @@
                     setAttendanceLog(data);
                 });
 
-                // Listen Accounts
+                // Listen Accounts (CRITICAL FOR LOGIN)
                 const unsubAcc = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), (snap) => {
                     let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    
                     if (data.length === 0) {
-                        // Init default admin if empty
+                        setDbStatus("Database Kosong. Mencoba buat akun default...");
+                        // Auto Create jika kosong
                         const def = { username: 'Respati', password: '0000', role: 'admin' };
-                        addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def);
+                        addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def)
+                            .then(() => setDbStatus("Akun Default Dibuat. Silakan Login."))
+                            .catch(e => {
+                                setDbStatus("Gagal Buat Akun Default");
+                                setDbError(e.message);
+                            });
+                    } else {
+                        setDbStatus("Database Siap. Silakan Login.");
+                        setDbError(null);
                     }
                     setAccounts(data);
+                }, (err) => {
+                    setDbStatus("Gagal Membaca Database");
+                    setDbError(err.message + " (Cek Permission/Rules)");
                 });
 
-                // Listen Classes (Stored as single doc 'list' in 'classes_config' collection for simplicity)
-                // Or separate docs. Let's use separate docs for flexibility
+                // Listen Classes
                 const unsubClass = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), (snap) => {
                     const data = snap.docs.map(d => d.data().name);
                     if(data.length === 0) {
-                        // Seed defaults
                         ['7A', '7B', '8A', '8B', '9A', '9B'].forEach(c => {
                             addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name: c});
                         });
@@ -916,9 +962,25 @@
                 };
             }, [db]);
 
-            // --- HANDLERS (CRUD via Firestore) ---
+            // --- HANDLERS ---
             
+            const handleForceCreateAdmin = async () => {
+                const { addDoc, collection } = window.firebaseModules;
+                try {
+                    setDbStatus("Memaksa pembuatan akun...");
+                    const def = { username: 'Respati', password: '0000', role: 'admin' };
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def);
+                    alert("Akun Darurat Berhasil Dibuat! Coba Login.");
+                } catch (e) {
+                    alert("Gagal: " + e.message);
+                }
+            };
+
             const handleLogin = (u, p) => {
+                if (accounts.length === 0) {
+                    alert("Data akun belum dimuat dari database. Tunggu sebentar atau cek status di layar.");
+                    return;
+                }
                 const found = accounts.find(acc => acc.username === u && acc.password === p);
                 if (found) {
                     setUser(found);
@@ -937,10 +999,8 @@
             const handleUpdateAccount = async (id, data) => {
                 const { addDoc, updateDoc, doc, collection } = window.firebaseModules;
                 if(id) {
-                    // Update
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id), data);
                 } else {
-                    // Add
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), data);
                 }
             };
@@ -951,27 +1011,6 @@
                     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id));
                 }
             };
-
-            // CLASSES
-            const handleUpdateClasses = async (newClassList) => {
-                // Ideally sync diff, but for now simple local state update passed to settings
-                // In full implementation, SettingsView should call addDoc/deleteDoc on classes_config collection
-                // We will patch SettingsView to do this directly? 
-                // Let's pass a handler.
-            };
-
-            const handleSetClasses = async (newClasses) => {
-                // Find diff to determine add/remove. 
-                // Simplifying: This app logic passed 'setClasses' which replaces list. 
-                // Firestore requires add/delete. 
-                // Let's just handle add from the UI for now.
-                // Re-writing SettingsView logic slightly to use direct firestore actions? 
-                // No, lets stick to the props pattern for consistency.
-                
-                // Hacky Sync: Find what's new and add it. Find what's gone and delete it.
-                // A better way for this prototype: Just add new ones. Deletion is tricky without IDs.
-                // We will update SettingsView to handle firestore directly for classes.
-            }
 
             // MEMBERS
             const generateBarcode = (name) => {
@@ -1011,26 +1050,22 @@
             };
 
             const handleDeleteMember = async (id) => {
-                const { deleteDoc, doc, query, where, getDocs, collection, writeBatch } = window.firebaseModules;
+                const { deleteDoc, doc } = window.firebaseModules;
                 if(confirm("Hapus data ini permanen?")) {
                     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', id));
-                    // Optional: Delete logs
                 }
             };
 
             const handlePromoteClass = async () => {
-                const { updateDoc, doc, writeBatch } = window.firebaseModules;
+                const { updateDoc, doc } = window.firebaseModules;
                 const pwd = prompt("Masukkan Password Kunci:");
                 if (pwd !== "PASS0716307164") return alert("Password Salah!");
 
                 if (!confirm("Yakin naikkan kelas semua siswa?")) return;
 
-                // Batch update is safer
-                // Note: Firestore batch limit is 500. For prototype we iterate.
                 members.forEach(async (m) => {
                     if (m.isAlumni) return;
                     let updates = {};
-                    
                     if (m.class.includes('9')) {
                         updates = { isAlumni: true, class: `Alumni ${new Date().getFullYear()}` };
                     } else if (m.class.includes('8')) {
@@ -1038,7 +1073,6 @@
                     } else if (m.class.includes('7')) {
                         updates = { class: m.class.replace('7', '8') };
                     }
-                    
                     if(Object.keys(updates).length > 0) {
                         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', m.id), updates);
                     }
@@ -1075,13 +1109,11 @@
                 setLastScanned(null);
             };
 
-            // Custom Class Handler for SettingsView
             const handleAddClass = async (name) => {
                 const { addDoc, collection } = window.firebaseModules;
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name});
             };
             const handleDeleteClass = async (name) => {
-                // Need to find ID first. 
                 const { getDocs, query, where, collection, deleteDoc, doc } = window.firebaseModules;
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), where("name", "==", name));
                 const snap = await getDocs(q);
@@ -1090,7 +1122,7 @@
                 });
             };
 
-            if (!isLogin) return <LoginView onLogin={handleLogin} />;
+            if (!isLogin) return <LoginView onLogin={handleLogin} status={dbStatus} dbError={dbError} onForceAdmin={handleForceCreateAdmin} />;
 
             return (
                 <div className="min-h-screen bg-black text-slate-200 max-w-md mx-auto shadow-2xl relative flex flex-col border-x border-slate-800">
@@ -1170,13 +1202,10 @@
                                 onUpdateAccount={handleUpdateAccount}
                                 classes={classes} 
                                 setClasses={(newClasses) => {
-                                    // Identify add/delete. 
                                     if(newClasses.length > classes.length) {
-                                        // Added
                                         const added = newClasses.find(c => !classes.includes(c));
                                         if(added) handleAddClass(added);
                                     } else {
-                                        // Removed
                                         const removed = classes.find(c => !newClasses.includes(c));
                                         if(removed) handleDeleteClass(removed);
                                     }

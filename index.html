@@ -213,7 +213,7 @@
             )
         }
 
-        // --- SCANNER COMPONENT (Auto-Stop Fix) ---
+        // --- SCANNER COMPONENT (Auto-Stop Fix & Format Locked) ---
         function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
             const [manualCode, setManualCode] = useState('');
             const [cameraError, setCameraError] = useState('');
@@ -235,12 +235,26 @@
                             scannerRef.current.clear();
                         }
 
-                        const html5QrCode = new window.Html5Qrcode(elementId);
+                        // --- PERBAIKAN: KUNCI FORMAT KE CODE 128 & QR ---
+                        // Ini akan mencegah scanner membaca noise sebagai angka acak
+                        const config = {
+                            formatsToSupport: [
+                                window.Html5QrcodeSupportedFormats.CODE_128,
+                                window.Html5QrcodeSupportedFormats.QR_CODE
+                            ],
+                            verbose: false
+                        };
+                        
+                        const html5QrCode = new window.Html5Qrcode(elementId, config);
                         scannerRef.current = html5QrCode;
 
                         await html5QrCode.start(
                             { facingMode: "environment" },
-                            { fps: 10, qrbox: { width: 250, height: 250 } },
+                            { 
+                                fps: 10, 
+                                qrbox: { width: 300, height: 150 }, // Ubah aspect ratio jadi persegi panjang
+                                aspectRatio: 1.0 
+                            },
                             (decodedText) => {
                                 isScanningRef.current = false;
                                 html5QrCode.stop().then(() => {

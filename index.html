@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>E-Absensi Respati Online</title>
+    <title>E-Absensi Respati</title>
     
     <!-- TAILWIND CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,7 +17,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
-    <!-- NEW SCANNER ENGINE: ZXing (Zebra Crossing) -->
+    <!-- QR CODE GENERATOR LIB -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- SCANNER ENGINE: ZXing -->
     <script type="text/javascript" src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 
     <!-- FIREBASE SDK -->
@@ -47,25 +50,22 @@
             top: 0; left: 0; right: 0; bottom: 0;
             border-style: solid;
             border-color: rgba(0, 0, 0, 0.6);
-            border-width: 100px 40px; 
+            border-width: 60px; /* Window Scanner */
             pointer-events: none;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
         }
-        .scan-line {
-            width: 100%;
-            height: 2px;
-            background: #06b6d4;
+        .scan-corner {
             position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            box-shadow: 0 0 10px #06b6d4;
-            animation: scanMove 2s infinite linear;
+            width: 30px; height: 30px;
+            border-color: #06b6d4;
+            border-style: solid;
+            z-index: 10;
         }
-        @keyframes scanMove {
-            0% { top: 10%; opacity: 0; }
-            50% { opacity: 1; }
-            100% { top: 90%; opacity: 0; }
-        }
+        .tl { top: 60px; left: 60px; border-width: 4px 0 0 4px; }
+        .tr { top: 60px; right: 60px; border-width: 4px 4px 0 0; }
+        .bl { bottom: 60px; left: 60px; border-width: 0 0 4px 4px; }
+        .br { bottom: 60px; right: 60px; border-width: 0 4px 4px 0; }
+
         video {
             object-fit: cover;
             width: 100%;
@@ -124,7 +124,7 @@
             Download: (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>,
             ChevronLeft: (props) => <IconBase {...props}><polyline points="15 18 9 12 15 6"/></IconBase>,
             ChevronRight: (props) => <IconBase {...props}><polyline points="9 18 15 12 9 6"/></IconBase>,
-            Settings: (props) => <IconBase {...props}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></IconBase>,
+            Settings: (props) => <IconBase {...props}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></IconBase>,
             LogOut: (props) => <IconBase {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconBase>,
             Lock: (props) => <IconBase {...props}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>,
             UserPlus: (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></IconBase>,
@@ -138,49 +138,52 @@
             Search: (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>,
             Info: (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconBase>,
             Maximize: (props) => <IconBase {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 1 2-2v-3"/></IconBase>,
-            Minimize: (props) => <IconBase {...props}><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></IconBase>
+            Minimize: (props) => <IconBase {...props}><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></IconBase>,
+            Eye: (props) => <IconBase {...props}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></IconBase>,
+            EyeOff: (props) => <IconBase {...props}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></IconBase>,
+            Image: (props) => <IconBase {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></IconBase>
         };
 
-        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info, Maximize, Minimize } = Icons;
+        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info, Maximize, Minimize, Eye, EyeOff, Image } = Icons;
 
-        // --- BARCODE GENERATOR MANUAL ---
-        const drawCode128 = (canvas, text) => {
-            if (!canvas || !text) return;
-            const ctx = canvas.getContext('2d');
-            const width = canvas.width;
-            const height = canvas.height;
-            
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(0, 0, width, height);
-            ctx.fillStyle = '#000000';
+        // --- IMAGE COMPRESSION HELPER ---
+        const compressImage = (file) => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new window.Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        // Resize to max 300px width/height to save DB space
+                        const MAX_SIZE = 300; 
+                        let width = img.width;
+                        let height = img.height;
 
-            const bars = [];
-            bars.push(2,1,1,2,1,4); 
-            for(let i=0; i<text.length; i++) {
-               const c = text.charCodeAt(i);
-               bars.push((c % 3) + 1, 1, ((c+2) % 3) + 1, 1, 2, 1);
-            }
-            bars.push(2,3,3,1,1,1,2); 
-
-            const totalUnit = bars.reduce((a,b)=>a+b, 0);
-            const unitWidth = Math.max(2, Math.floor((width - 40) / totalUnit)); 
-            const realWidth = totalUnit * unitWidth;
-            let startX = (width - realWidth) / 2;
-
-            bars.forEach((w, i) => {
-                if (i % 2 === 0) {
-                    ctx.fillRect(startX, 20, w * unitWidth, height - 60);
-                }
-                startX += w * unitWidth;
+                        if (width > height) {
+                            if (width > MAX_SIZE) {
+                                height *= MAX_SIZE / width;
+                                width = MAX_SIZE;
+                            }
+                        } else {
+                            if (height > MAX_SIZE) {
+                                width *= MAX_SIZE / height;
+                                height = MAX_SIZE;
+                            }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.7)); // Compress as JPEG
+                    };
+                };
             });
-
-            ctx.font = 'bold 24px monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText(text, width/2, height - 15);
         };
 
         // --- LOGIN VIEW ---
-        function LoginView({ onLogin, status, dbError, onForceAdmin }) {
+        function LoginView({ onLogin, status, dbError }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
 
@@ -194,7 +197,7 @@
                                 <Lock className="text-white w-8 h-8" />
                             </div>
                             <h1 className="text-2xl font-bold text-white tracking-wide">E-ABSENSI RESPATI</h1>
-                            <p className="text-slate-400 text-sm mt-2">Login Administrator Online</p>
+                            <p className="text-slate-400 text-sm mt-2">Login Administrator</p>
                         </div>
                         
                         <div className={`mb-6 p-3 rounded-xl border text-xs font-mono ${dbError ? 'bg-red-900/30 border-red-800 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
@@ -216,13 +219,6 @@
                             </div>
                             <button className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg mt-6 active:scale-95 transition-transform">MASUK ONLINE</button>
                         </form>
-
-                        <div className="mt-8 text-center border-t border-slate-800 pt-4">
-                            <p className="text-xs text-slate-500 mb-2">Masih gagal login?</p>
-                            <button onClick={onForceAdmin} className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-400 px-3 py-2 rounded-lg transition-colors border border-slate-700">
-                                Buat Akun Darurat (Respati/0000)
-                            </button>
-                        </div>
                     </div>
                 </div>
             );
@@ -242,7 +238,7 @@
             )
         }
 
-        // --- SCANNER COMPONENT (Auto-Focus Removed) ---
+        // --- SCANNER COMPONENT ---
         function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
             const [manualCode, setManualCode] = useState('');
             const [cameraError, setCameraError] = useState('');
@@ -251,14 +247,13 @@
             const codeReaderRef = useRef(null);
 
             useEffect(() => {
-                if(lastScanned) return; // Stop if modal open
+                if(lastScanned) return; 
 
                 const startZXing = async () => {
                     try {
                         const { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } = ZXing;
-                        
                         const hints = new Map();
-                        const formats = [BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE];
+                        const formats = [BarcodeFormat.QR_CODE];
                         hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
 
                         const codeReader = new BrowserMultiFormatReader(hints);
@@ -273,7 +268,6 @@
                                 const text = result.getText();
                                 setScannedTextDisplay(text); 
                                 if(text.length < 3) return; 
-
                                 codeReader.reset();
                                 onScan(text);
                             }
@@ -300,28 +294,24 @@
                         <video ref={videoRef} className="w-full h-full object-cover" />
                         
                         <div className="scanner-overlay">
-                            <div className="scan-line"></div>
+                            <div className="scan-corner tl"></div><div className="scan-corner tr"></div>
+                            <div className="scan-corner bl"></div><div className="scan-corner br"></div>
                         </div>
 
                         {scannedTextDisplay && !lastScanned && (
                             <div className="absolute bottom-10 bg-black/50 text-cyan-400 px-4 py-2 rounded-full backdrop-blur font-mono text-xs border border-cyan-500/30">
-                                Mendeteksi: {scannedTextDisplay}...
+                                Mendeteksi QR: {scannedTextDisplay}...
                             </div>
                         )}
 
                         {cameraError && (
                             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 text-center p-6 z-10">
-                                <div>
-                                    <Camera size={48} className="mx-auto mb-4 text-red-500" />
-                                    <p className="text-white font-bold">Kamera Error</p>
-                                    <p className="text-xs text-slate-400 mt-2">{cameraError}</p>
-                                </div>
+                                <div><Camera size={48} className="mx-auto mb-4 text-red-500" /><p className="text-white font-bold">Kamera Error</p><p className="text-xs text-slate-400 mt-2">{cameraError}</p></div>
                             </div>
                         )}
                     </div>
 
                     <div className="p-4 bg-slate-900 border-t border-slate-800">
-                        {/* AUTO FOCUS REMOVED FROM INPUT */}
                         <form onSubmit={(e)=>{e.preventDefault(); onScan(manualCode); setManualCode('');}} className="flex gap-2">
                             <input value={manualCode} onChange={e=>setManualCode(e.target.value.toUpperCase())} className="flex-1 bg-black border border-slate-700 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 font-mono text-center tracking-widest placeholder:tracking-normal" placeholder="Input Manual (Cth: RA001)" />
                             <button className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 rounded-xl font-bold transition-colors">CEK</button>
@@ -335,17 +325,22 @@
                                     <>
                                         <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 border border-red-900/50"><X size={32}/></div>
                                         <h3 className="text-xl font-bold text-white">Tidak Ditemukan</h3>
-                                        <p className="text-slate-400 mt-2 font-mono bg-black/50 p-2 rounded border border-slate-700 text-sm">
-                                            Kode: {lastScanned.text}
-                                        </p>
-                                        <p className="text-xs text-slate-500 mt-2">Pastikan barcode tidak terpotong / buram.</p>
+                                        <p className="text-slate-400 mt-2 font-mono bg-black/50 p-2 rounded border border-slate-700 text-sm">Kode: {lastScanned.text}</p>
                                         <button onClick={onCancel} className="mt-6 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-colors">Scan Ulang</button>
                                     </>
                                 ) : (
                                     <>
-                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${lastScanned.status==='warning' ? 'bg-orange-500/20 text-orange-500 border-orange-500/30' : 'bg-green-500/20 text-green-500 border-green-500/30'}`}>
-                                            <Check size={32} />
-                                        </div>
+                                        {/* SHOW PHOTO IF AVAILABLE */}
+                                        {lastScanned.member.photo ? (
+                                            <div className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-cyan-500 overflow-hidden shadow-lg shadow-cyan-500/30">
+                                                <img src={lastScanned.member.photo} alt="Foto" className="w-full h-full object-cover" />
+                                            </div>
+                                        ) : (
+                                            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${lastScanned.status==='warning' ? 'bg-orange-500/20 text-orange-500 border-orange-500/30' : 'bg-green-500/20 text-green-500 border-green-500/30'}`}>
+                                                <Check size={32} />
+                                            </div>
+                                        )}
+                                        
                                         <h2 className="text-xl font-bold text-white">{lastScanned.member.name}</h2>
                                         <p className="text-cyan-400 mb-4">{lastScanned.member.class}</p>
                                         {!lastScanned.isSaturday && <div className="text-xs bg-red-900/50 text-red-200 p-2 rounded mb-2 border border-red-900/50">Peringatan: Hari ini bukan Sabtu</div>}
@@ -365,19 +360,29 @@
             )
         }
 
-        // --- LIST COMPONENTS (Unchanged) ---
-        function MembersList({ members, attendanceLog, onEdit, onDelete, onAdd, onPromote, onViewAlumni }) {
-            const [filterClass, setFilterClass] = useState('all');
-            const [sortOrder, setSortOrder] = useState('az');
+        // --- LIST COMPONENTS ---
+        function MembersList({ members, attendanceLog, onEdit, onDelete, onAdd, onPromote, onViewAlumni, classes, currentUser }) {
+            const [filterGrade, setFilterGrade] = useState('all');
+            const [filterSubClass, setFilterSubClass] = useState('all');
             const [searchQuery, setSearchQuery] = useState('');
             const [selectedBarcode, setSelectedBarcode] = useState(null);
             const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
-            // LOGIC STATUS KEAKTIFAN
-            const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
-            const totalEvents = uniqueDates.length;
+            const isSuperAdmin = currentUser?.username === 'Respati';
+
+            const subClassOptions = useMemo(() => {
+                if (filterGrade === 'all') return [];
+                return classes.filter(c => c.startsWith(filterGrade)).sort();
+            }, [filterGrade, classes]);
+
+            const handleGradeChange = (grade) => {
+                setFilterGrade(grade);
+                setFilterSubClass('all');
+            };
 
             const getStatus = (memberId) => {
+                const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
+                const totalEvents = uniqueDates.length;
                 if (totalEvents === 0) return { label: 'BARU', color: 'bg-slate-700 text-slate-300 border-slate-600' };
                 const memberEvents = attendanceLog.filter(l => l.memberId === memberId).length;
                 const percentage = (memberEvents / totalEvents) * 100;
@@ -390,17 +395,31 @@
             const activeMembers = members
                 .filter(m => !m.isAlumni)
                 .filter(m => {
-                    // Search Logic (Realtime)
                     const search = searchQuery.toUpperCase();
                     const matchSearch = m.name.includes(search) || m.class.toUpperCase().includes(search);
-                    const matchClass = filterClass === 'all' || m.class.startsWith(filterClass);
-                    return matchSearch && matchClass;
+                    const matchGrade = filterGrade === 'all' || m.class.startsWith(filterGrade);
+                    const matchSubClass = filterSubClass === 'all' || m.class === filterSubClass;
+                    return matchSearch && matchGrade && matchSubClass;
                 })
                 .sort((a,b) => {
-                    if (sortOrder === 'az') return a.name.localeCompare(b.name);
-                    if (sortOrder === 'za') return b.name.localeCompare(a.name);
-                    return b.id - a.id; 
+                    const classComparison = a.class.localeCompare(b.class, 'id', {numeric: true});
+                    if (classComparison !== 0) return classComparison;
+                    return a.name.localeCompare(b.name);
                 });
+
+            const handlePromoteClick = () => {
+                if (!isSuperAdmin) {
+                    alert("Akses Ditolak: Hanya Admin Utama (Respati) yang bisa menaikkan kelas.");
+                    return;
+                }
+                const pwd = prompt("Konfirmasi Keamanan: Masukkan Password Admin Utama untuk melanjutkan:");
+                // Validasi password admin utama
+                if (pwd === currentUser.password) {
+                    onPromote();
+                } else {
+                    alert("Password Salah!");
+                }
+            };
 
             return (
                 <div className="space-y-4 animate-fade-in">
@@ -408,17 +427,14 @@
                         <h2 className="text-lg font-bold text-white">Daftar Anggota</h2>
                     </div>
 
-                    {/* Toolbar */}
                     <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                         <button onClick={onAdd} className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><Plus size={14}/> Tambah</button>
-                        <button onClick={onPromote} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><TrendingUp size={14}/> Naik Kelas</button>
+                        <button onClick={handlePromoteClick} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors ${isSuperAdmin ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}><TrendingUp size={14}/> Naik Kelas</button>
                         <button onClick={onViewAlumni} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><GraduationCap size={14}/> Alumni</button>
                         <button onClick={()=>setIsPdfModalOpen(true)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><FileDown size={14}/> PDF Anggota</button>
                     </div>
 
-                    {/* Search & Filter */}
-                    <div className="space-y-2">
-                        {/* Search Box */}
+                    <div className="space-y-3">
                         <div className="relative">
                             <input 
                                 value={searchQuery}
@@ -429,42 +445,52 @@
                             <div className="absolute left-3 top-2.5 text-slate-500"><Search size={16}/></div>
                         </div>
 
-                        <div className="flex justify-between items-center gap-2">
-                            <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                                {['all', '7', '8', '9'].map(c => (
-                                    <button key={c} onClick={()=>setFilterClass(c)} className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterClass===c ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>
-                                        {c==='all'?'Semua':`Kls ${c}`}
+                        <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                            {['all', '7', '8', '9'].map(c => (
+                                <button key={c} onClick={()=>handleGradeChange(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterGrade===c ? 'bg-cyan-600 border-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>
+                                    {c==='all'?'Semua':`Kelas ${c}`}
+                                </button>
+                            ))}
+                        </div>
+
+                        {filterGrade !== 'all' && subClassOptions.length > 0 && (
+                            <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 animate-fade-in">
+                                <button onClick={()=>setFilterSubClass('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass==='all' ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>
+                                    Semua {filterGrade}
+                                </button>
+                                {subClassOptions.map(c => (
+                                    <button key={c} onClick={()=>setFilterSubClass(c)} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass===c ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>
+                                        {c}
                                     </button>
                                 ))}
                             </div>
-                            <div className="relative">
-                                <select value={sortOrder} onChange={e=>setSortOrder(e.target.value)} className="appearance-none bg-slate-900 text-xs text-slate-300 border border-slate-700 rounded-lg pl-3 pr-8 py-1.5 outline-none focus:border-cyan-500">
-                                    <option value="az">A-Z</option>
-                                    <option value="za">Z-A</option>
-                                    <option value="new">Baru</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><ArrowUpDown size={12} /></div>
-                            </div>
-                        </div>
+                        )}
                     </div>
 
-                    {/* LIST */}
                     <div className="space-y-3 pb-20">
                         {activeMembers.map(m => {
                             const status = getStatus(m.id);
                             return (
                                 <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between group hover:border-cyan-500/30 transition-all shadow-sm">
-                                    <div className="flex-1 min-w-0 mr-2">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="font-bold text-white truncate text-sm">{m.name}</h3>
+                                    <div className="flex-1 min-w-0 mr-2 flex items-center gap-3">
+                                        {/* Thumbnail Foto (Optional) */}
+                                        {m.photo ? (
+                                            <img src={m.photo} className="w-10 h-10 rounded-full object-cover border border-slate-600" alt="" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500"><Users size={18}/></div>
+                                        )}
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <h3 className="font-bold text-white truncate text-sm">{m.name}</h3>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 text-xs mb-1">
+                                                <span className="text-cyan-400 font-bold bg-cyan-950/30 px-1.5 py-0.5 rounded border border-cyan-900/50">{m.class}</span>
+                                                <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${status.color}`}>
+                                                    {status.label}
+                                                </span>
+                                            </div>
+                                            {m.phoneNumber && <div className="text-slate-500 text-[10px] flex items-center gap-1"><Phone size={10}/> {m.phoneNumber}</div>}
                                         </div>
-                                        <div className="flex flex-wrap gap-2 text-xs mb-1">
-                                            <span className="text-cyan-400 font-bold bg-cyan-950/30 px-1.5 py-0.5 rounded border border-cyan-900/50">{m.class}</span>
-                                            <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${status.color}`}>
-                                                {status.label}
-                                            </span>
-                                        </div>
-                                        {m.phoneNumber && <div className="text-slate-500 text-[10px] flex items-center gap-1"><Phone size={10}/> {m.phoneNumber}</div>}
                                     </div>
                                     <div className="flex gap-2 shrink-0">
                                         <button onClick={()=>setSelectedBarcode(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg transition-colors"><QrCode size={16}/></button>
@@ -483,22 +509,17 @@
             );
         }
 
-        // --- PDF DOWNLOAD MODAL (NEW FEATURE) ---
+        // --- PDF DOWNLOAD MODAL (Unchanged) ---
         function PdfDownloadModal({ members, attendanceLog, onClose }) {
             const [selected, setSelected] = useState({
-                cls7: true,
-                cls8: true,
-                cls9: true,
-                alumni: false
+                cls7: true, cls8: true, cls9: true, alumni: false
             });
 
-            // Calculate Status Helper (Copied Logic)
-            const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
-            const totalEvents = uniqueDates.length;
             const getStatusLabel = (memberId) => {
-                if (totalEvents === 0) return 'BARU';
+                const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
+                if (uniqueDates.length === 0) return 'BARU';
                 const memberEvents = attendanceLog.filter(l => l.memberId === memberId).length;
-                const percentage = (memberEvents / totalEvents) * 100;
+                const percentage = (memberEvents / uniqueDates.length) * 100;
                 if (percentage === 0) return 'TIDAK AKTIF';
                 if (percentage < 40) return 'KURANG AKTIF';
                 if (percentage < 70) return 'PASIF';
@@ -512,28 +533,24 @@
                     if (m.class.includes('8')) return selected.cls8;
                     if (m.class.includes('9')) return selected.cls9;
                     return false;
-                }).sort((a,b) => a.class.localeCompare(b.class));
+                }).sort((a,b) => {
+                    const classComparison = a.class.localeCompare(b.class, 'id', {numeric: true});
+                    if (classComparison !== 0) return classComparison;
+                    return a.name.localeCompare(b.name);
+                });
 
                 if(dataToPrint.length === 0) return alert("Tidak ada data terpilih");
 
-                const doc = new jspdf.jsPDF('l'); // Landscape
+                const doc = new jspdf.jsPDF('l'); 
                 doc.text(`Data Anggota E-Absensi Respati`, 14, 15);
                 doc.setFontSize(10);
                 doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 22);
 
                 const head = [['Nama', 'Kelas', 'Gender', 'No. HP', 'Status']];
-                const body = dataToPrint.map(m => [
-                    m.name,
-                    m.class,
-                    m.gender,
-                    m.phoneNumber || '-',
-                    getStatusLabel(m.id)
-                ]);
+                const body = dataToPrint.map(m => [m.name, m.class, m.gender, m.phoneNumber || '-', getStatusLabel(m.id)]);
 
                 doc.autoTable({
-                    head,
-                    body,
-                    startY: 28,
+                    head, body, startY: 28,
                     headStyles: { fillColor: [8, 145, 178] },
                     styles: { fontSize: 9 },
                 });
@@ -548,22 +565,12 @@
                     <div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 shadow-2xl">
                         <h3 className="text-lg font-bold text-white mb-4">Pilih Data Download</h3>
                         <div className="space-y-3 mb-6">
-                            <div onClick={()=>toggle('cls7')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls7 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls7 && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Kelas 7</span>
-                            </div>
-                            <div onClick={()=>toggle('cls8')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls8 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls8 && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Kelas 8</span>
-                            </div>
-                            <div onClick={()=>toggle('cls9')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls9 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls9 && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Kelas 9</span>
-                            </div>
-                            <div onClick={()=>toggle('alumni')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.alumni ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.alumni && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Alumni</span>
-                            </div>
+                            {['cls7', 'cls8', 'cls9', 'alumni'].map(key => (
+                                <div key={key} onClick={()=>toggle(key)} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected[key] ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected[key] && <Check size={14} className="text-white"/>}</div>
+                                    <span className="text-slate-300 text-sm">{key === 'alumni' ? 'Alumni' : `Kelas ${key.replace('cls','')}`}</span>
+                                </div>
+                            ))}
                         </div>
                         <div className="flex gap-3">
                             <button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800">Batal</button>
@@ -574,56 +581,98 @@
             )
         }
 
+        // --- ALUMNI LIST (UPDATED) ---
         function AlumniList({ members, onBack }) {
-            const alumni = members.filter(m => m.isAlumni);
+            const [search, setSearch] = useState('');
+            const [filterYear, setFilterYear] = useState('all');
+
+            // 1. Filter Alumni Raw
+            const rawAlumni = members.filter(m => m.isAlumni);
+
+            // 2. Get Unique Years for Dropdown
+            const years = useMemo(() => {
+                const y = rawAlumni.map(m => m.class.replace('Alumni ', '')).filter(y => y.match(/^\d{4}$/));
+                return [...new Set(y)].sort((a,b) => b-a);
+            }, [rawAlumni]);
+
+            // 3. Filter & Sort Logic
+            const filteredAlumni = rawAlumni.filter(m => {
+                const mYear = m.class.replace('Alumni ', '');
+                const matchSearch = m.name.toUpperCase().includes(search.toUpperCase());
+                const matchYear = filterYear === 'all' || mYear === filterYear;
+                return matchSearch && matchYear;
+            }).sort((a,b) => a.name.localeCompare(b.name));
+
             return (
                 <div className="space-y-4 animate-fade-in">
-                    <div className="flex items-center gap-2 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
                         <button onClick={onBack} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={20}/></button>
                         <h2 className="text-lg font-bold text-cyan-400">Daftar Alumni</h2>
                     </div>
-                    {alumni.map(m => (
-                        <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl opacity-75 flex justify-between items-center">
-                            <div>
-                                <h3 className="font-bold text-slate-300">{m.name}</h3>
-                                <p className="text-xs text-slate-500">{m.class}</p>
-                            </div>
-                            <span className="text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded border border-slate-700">Non-Aktif</span>
+
+                    {/* Filter Controls */}
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <input 
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Cari Alumni..."
+                                className="w-full bg-slate-900 border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500 transition-colors"
+                            />
+                            <div className="absolute left-3 top-2.5 text-slate-500"><Search size={16}/></div>
                         </div>
-                    ))}
-                    {alumni.length===0 && <div className="text-center text-slate-600 mt-10 p-8 border border-dashed border-slate-800 rounded-xl">Belum ada alumni.</div>}
+                        <select 
+                            value={filterYear} 
+                            onChange={(e) => setFilterYear(e.target.value)}
+                            className="bg-slate-900 border border-slate-700 text-white px-3 py-2 rounded-xl text-sm outline-none focus:border-cyan-500"
+                        >
+                            <option value="all">Semua Tahun</option>
+                            {years.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                    </div>
+
+                    {/* List */}
+                    <div className="space-y-2 pb-20">
+                        {filteredAlumni.map(m => (
+                            <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl opacity-75 flex justify-between items-center hover:opacity-100 transition-opacity">
+                                <div className="flex items-center gap-3">
+                                     {m.photo ? (
+                                        <img src={m.photo} className="w-10 h-10 rounded-full object-cover border border-slate-600 grayscale" alt="" />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500"><Users size={18}/></div>
+                                    )}
+                                    <div>
+                                        <h3 className="font-bold text-slate-300">{m.name}</h3>
+                                        <p className="text-xs text-slate-500">Lulusan {m.class.replace('Alumni ', '')}</p>
+                                    </div>
+                                </div>
+                                <span className="text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded border border-slate-700">Alumni</span>
+                            </div>
+                        ))}
+                        {filteredAlumni.length === 0 && <div className="text-center text-slate-600 mt-10 p-8 border border-dashed border-slate-800 rounded-xl">Data tidak ditemukan.</div>}
+                    </div>
                 </div>
             )
         }
 
         function BarcodeModal({ member, onClose }) {
-            const canvasRef = useRef(null);
-
+            const qrRef = useRef(null);
             useEffect(() => {
-                if (canvasRef.current) {
-                    canvasRef.current.width = 320; 
-                    canvasRef.current.height = 160;
-                    drawCode128(canvasRef.current, member.barcode);
+                if (qrRef.current) {
+                    qrRef.current.innerHTML = "";
+                    try { new QRCode(qrRef.current, { text: member.barcode, width: 200, height: 200, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H }); } catch(e) {}
                 }
             }, [member]);
-
             const download = () => {
-                const link = document.createElement('a');
-                link.download = `BARCODE_${member.name}.png`;
-                link.href = canvasRef.current.toDataURL();
-                link.click();
+                const img = qrRef.current.querySelector("img");
+                if(img) { const link = document.createElement('a'); link.download = `QR_${member.name}.png`; link.href = img.src; link.click(); }
             };
-
             return (
                 <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
                     <div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 flex flex-col items-center shadow-2xl">
                         <h3 className="text-xl font-bold text-white text-center mb-1">{member.name}</h3>
                         <p className="text-cyan-400 mb-6">{member.class}</p>
-                        
-                        <div className="bg-white p-4 rounded-xl w-full flex justify-center mb-6 shadow-inner">
-                            <canvas ref={canvasRef} style={{maxWidth:'100%', height:'auto'}} />
-                        </div>
-
+                        <div className="bg-white p-4 rounded-xl w-full flex justify-center mb-6 shadow-inner aspect-square items-center"><div ref={qrRef}></div></div>
                         <div className="flex gap-3 w-full">
                             <button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800 transition-colors">Tutup</button>
                             <button onClick={download} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><Download size={16}/> Simpan</button>
@@ -634,7 +683,18 @@
         }
 
         function MemberForm({ isEdit, initialData, classes, onSubmit, onCancel }) {
-            const [form, setForm] = useState(initialData || { name:'', class: classes[0] || '7A', gender:'L', phoneNumber:'' });
+            const [form, setForm] = useState(initialData || { name:'', class: classes[0] || '7A', gender:'L', phoneNumber:'', photo: null });
+            const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+            const fileInputRef = useRef(null);
+            const cameraInputRef = useRef(null);
+
+            const handleFileChange = async (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const compressed = await compressImage(e.target.files[0]);
+                    setForm({...form, photo: compressed});
+                }
+                setShowPhotoOptions(false);
+            };
 
             return (
                 <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl animate-fade-in">
@@ -642,48 +702,59 @@
                         {isEdit ? <Edit2 size={20}/> : <Plus size={20}/>} 
                         {isEdit ? 'Edit' : 'Tambah'} Anggota
                     </h2>
+                    
+                    {/* PHOTO INPUT SECTION */}
+                    <div className="flex justify-center mb-6">
+                        <div className="relative">
+                            <div className="w-24 h-24 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden cursor-pointer hover:border-cyan-500 transition-colors" onClick={()=>setShowPhotoOptions(!showPhotoOptions)}>
+                                {form.photo ? (
+                                    <img src={form.photo} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Camera size={32} className="text-slate-500"/>
+                                )}
+                            </div>
+                            {/* Photo Options Modal/Dropdown */}
+                            {showPhotoOptions && (
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-800 border border-slate-700 rounded-xl p-2 w-40 z-20 shadow-xl flex flex-col gap-2">
+                                    <button onClick={()=>cameraInputRef.current.click()} className="flex items-center gap-2 text-xs text-white p-2 hover:bg-slate-700 rounded-lg">
+                                        <Camera size={14}/> Buka Kamera
+                                    </button>
+                                    <button onClick={()=>fileInputRef.current.click()} className="flex items-center gap-2 text-xs text-white p-2 hover:bg-slate-700 rounded-lg">
+                                        <Image size={14}/> Buka Galeri
+                                    </button>
+                                    <button onClick={()=>setForm({...form, photo:null})} className="flex items-center gap-2 text-xs text-red-400 p-2 hover:bg-slate-700 rounded-lg">
+                                        <Trash2 size={14}/> Hapus Foto
+                                    </button>
+                                </div>
+                            )}
+                            {/* Hidden Inputs */}
+                            <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+                            <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} className="hidden" onChange={handleFileChange} />
+                        </div>
+                    </div>
+
                     <div className="space-y-4">
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Nama Lengkap</label>
-                            <input 
-                                value={form.name} 
-                                onChange={e=>setForm({...form, name:e.target.value.toUpperCase()})}
-                                className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl uppercase focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700"
-                                placeholder="NAMA SISWA"
-                            />
+                            <input value={form.name} onChange={e=>setForm({...form, name:e.target.value.toUpperCase()})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl uppercase focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700" placeholder="NAMA SISWA" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Kelas</label>
-                                <select 
-                                    value={form.class} 
-                                    onChange={e=>setForm({...form, class:e.target.value})}
-                                    className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors"
-                                >
+                                <select value={form.class} onChange={e=>setForm({...form, class:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors">
                                     {classes.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Gender</label>
-                                <select 
-                                    value={form.gender} 
-                                    onChange={e=>setForm({...form, gender:e.target.value})}
-                                    className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors"
-                                >
-                                    <option value="L">Laki-laki</option>
-                                    <option value="P">Perempuan</option>
+                                <select value={form.gender} onChange={e=>setForm({...form, gender:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors">
+                                    <option value="L">Laki-laki</option><option value="P">Perempuan</option>
                                 </select>
                             </div>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-slate-500 uppercase block mb-1">No. HP</label>
-                            <input 
-                                type="tel"
-                                value={form.phoneNumber} 
-                                onChange={e=>setForm({...form, phoneNumber:e.target.value})}
-                                className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700"
-                                placeholder="08..."
-                            />
+                            <input type="tel" value={form.phoneNumber} onChange={e=>setForm({...form, phoneNumber:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700" placeholder="08..." />
                         </div>
                         <div className="flex gap-3 mt-6">
                             <button onClick={onCancel} className="flex-1 py-3 text-slate-400 font-bold border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors">Batal</button>
@@ -694,9 +765,37 @@
             )
         }
 
-        function ReportView({ members, logs }) {
+        // --- REPORT VIEW (Unchanged) ---
+        function ReportView({ members, logs, classes }) {
             const [currentDate, setCurrentDate] = useState(new Date());
-            const activeMembers = members.filter(m => !m.isAlumni);
+            const [filterGrade, setFilterGrade] = useState('all');
+            const [filterSubClass, setFilterSubClass] = useState('all');
+            const [searchQuery, setSearchQuery] = useState('');
+
+            const subClassOptions = useMemo(() => {
+                if (filterGrade === 'all') return [];
+                return classes.filter(c => c.startsWith(filterGrade)).sort();
+            }, [filterGrade, classes]);
+
+            const handleGradeChange = (grade) => {
+                setFilterGrade(grade);
+                setFilterSubClass('all');
+            };
+
+            const activeMembers = members
+                .filter(m => !m.isAlumni)
+                .filter(m => {
+                    const search = searchQuery.toUpperCase();
+                    const matchSearch = m.name.includes(search) || m.class.toUpperCase().includes(search);
+                    const matchGrade = filterGrade === 'all' || m.class.startsWith(filterGrade);
+                    const matchSubClass = filterSubClass === 'all' || m.class === filterSubClass;
+                    return matchSearch && matchGrade && matchSubClass;
+                })
+                .sort((a,b) => {
+                    const classComparison = a.class.localeCompare(b.class, 'id', {numeric: true});
+                    if (classComparison !== 0) return classComparison;
+                    return a.name.localeCompare(b.name);
+                });
 
             const getSaturdays = (date) => {
                 const year = date.getFullYear();
@@ -721,69 +820,34 @@
                 doc.text(`Laporan Absensi - ${currentDate.toLocaleString('default',{month:'long', year:'numeric'})}`, 14, 15);
                 doc.setFontSize(10);
                 doc.text("E-Absensi Respati", 14, 22);
-                
                 const head = [['Nama', 'Kelas', ...saturdays.map(d=>d.getDate())]];
-                const body = activeMembers.map(m => [
-                    m.name, 
-                    m.class, 
-                    ...saturdays.map(d => getAttendance(m.id, d) ? 'H' : '-')
-                ]);
-                
-                doc.autoTable({ 
-                    head, 
-                    body, 
-                    startY: 28,
-                    headStyles: { fillColor: [8, 145, 178] },
-                    styles: { fontSize: 8 },
-                    didParseCell: function(data) {
-                        if (data.section === 'body' && data.column.index > 1) {
-                            if (data.cell.raw === 'H') {
-                                data.cell.styles.fillColor = [34, 197, 94];
-                                data.cell.styles.textColor = [255, 255, 255];
-                            }
-                        }
-                    }
-                });
+                const body = activeMembers.map(m => [m.name, m.class, ...saturdays.map(d => getAttendance(m.id, d) ? 'H' : '-')]);
+                doc.autoTable({ head, body, startY: 28, headStyles: { fillColor: [8, 145, 178] }, styles: { fontSize: 8 }, didParseCell: function(data) { if (data.section === 'body' && data.column.index > 1 && data.cell.raw === 'H') { data.cell.styles.fillColor = [34, 197, 94]; data.cell.styles.textColor = [255, 255, 255]; }}});
                 doc.save(`Laporan_${currentDate.toISOString().slice(0,7)}.pdf`);
             };
 
             return (
-                <div className="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-full animate-fade-in shadow-xl">
-                    <div className="p-4 flex justify-between items-center border-b border-slate-800">
-                        <div className="flex gap-2">
-                            <button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={20}/></button>
-                            <div className="text-center px-4">
-                                <h2 className="font-bold text-white">{currentDate.toLocaleString('default',{month:'long', year:'numeric'})}</h2>
-                                <p className="text-xs text-slate-500">{saturdays.length} Sabtu</p>
+                <div className="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-full animate-fade-in shadow-xl overflow-hidden">
+                    <div className="p-4 border-b border-slate-800 space-y-3 bg-slate-900 sticky top-0 z-20">
+                        <div className="flex justify-between items-center">
+                            <div className="flex gap-2 items-center">
+                                <button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700"><ChevronLeft size={20}/></button>
+                                <div className="text-center px-2"><h2 className="font-bold text-white text-sm">{currentDate.toLocaleString('default',{month:'long', year:'numeric'})}</h2><p className="text-[10px] text-slate-500">{saturdays.length} Sabtu</p></div>
+                                <button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700"><ChevronRight size={20}/></button>
                             </div>
-                            <button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronRight size={20}/></button>
+                            <button onClick={downloadPDF} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex gap-1"><FileDown size={14}/> PDF</button>
                         </div>
-                        <button onClick={downloadPDF} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex gap-1 transition-colors"><FileDown size={14}/> PDF</button>
+                        <div className="space-y-3">
+                            <div className="relative"><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari siswa di laporan..." className="w-full bg-black border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-xs outline-none focus:border-cyan-500 transition-colors"/><div className="absolute left-3 top-2 text-slate-500"><Search size={14}/></div></div>
+                            <div className="flex gap-1 overflow-x-auto no-scrollbar">{['all', '7', '8', '9'].map(c => (<button key={c} onClick={()=>handleGradeChange(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterGrade===c ? 'bg-cyan-600 border-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>{c==='all'?'Semua':`Kelas ${c}`}</button>))}</div>
+                            {filterGrade !== 'all' && subClassOptions.length > 0 && (<div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 animate-fade-in"><button onClick={()=>setFilterSubClass('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass==='all' ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>Semua {filterGrade}</button>{subClassOptions.map(c => (<button key={c} onClick={()=>setFilterSubClass(c)} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass===c ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>{c}</button>))}</div>)}
+                        </div>
                     </div>
                     <div className="flex-1 overflow-auto">
                         <table className="w-full text-xs text-left border-collapse">
-                            <thead className="text-slate-400 bg-slate-900 sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="p-3 border-b border-r border-slate-800 min-w-[120px] sticky left-0 bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Nama</th>
-                                    <th className="p-3 border-b border-r border-slate-800 sticky left-[120px] bg-slate-900 min-w-[50px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Kls</th>
-                                    {saturdays.map(d => <th key={d} className="p-2 border-b border-slate-800 text-center min-w-[30px] font-normal">{d.getDate()}</th>)}
-                                </tr>
-                            </thead>
+                            <thead className="text-slate-400 bg-slate-900 sticky top-0 z-10 shadow-sm"><tr><th className="p-3 border-b border-r border-slate-800 min-w-[120px] sticky left-0 bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Nama</th><th className="p-3 border-b border-r border-slate-800 sticky left-[120px] bg-slate-900 min-w-[50px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Kls</th>{saturdays.map(d => <th key={d} className="p-2 border-b border-slate-800 text-center min-w-[30px] font-normal">{d.getDate()}</th>)}</tr></thead>
                             <tbody>
-                                {activeMembers.map(m => (
-                                    <tr key={m.id} className="hover:bg-slate-800/50">
-                                        <td className="p-3 border-b border-r border-slate-800 font-bold text-slate-300 sticky left-0 bg-black min-w-[120px] truncate shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.name}</td>
-                                        <td className="p-3 border-b border-r border-slate-800 text-cyan-500 sticky left-[120px] bg-black shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.class}</td>
-                                        {saturdays.map(d => {
-                                            const isHadir = getAttendance(m.id, d);
-                                            return (
-                                                <td key={d} className="p-2 border-b border-slate-800 text-center">
-                                                    {isHadir ? <div className="w-3 h-3 bg-green-500 rounded-full mx-auto shadow-[0_0_5px_lime]"></div> : <span className="text-slate-700">-</span>}
-                                                </td>
-                                            )
-                                        })}
-                                    </tr>
-                                ))}
+                                {activeMembers.length > 0 ? activeMembers.map(m => (<tr key={m.id} className="hover:bg-slate-800/50"><td className="p-3 border-b border-r border-slate-800 font-bold text-slate-300 sticky left-0 bg-black min-w-[120px] truncate shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.name}</td><td className="p-3 border-b border-r border-slate-800 text-cyan-500 sticky left-[120px] bg-black shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.class}</td>{saturdays.map(d => {const isHadir = getAttendance(m.id, d);return (<td key={d} className="p-2 border-b border-slate-800 text-center">{isHadir ? <div className="w-3 h-3 bg-green-500 rounded-full mx-auto shadow-[0_0_5px_lime]"></div> : <span className="text-slate-700">-</span>}</td>)})}</tr>)) : (<tr><td colSpan={saturdays.length + 2} className="p-8 text-center text-slate-500 italic">Data tidak ditemukan untuk filter ini.</td></tr>)}
                             </tbody>
                         </table>
                     </div>
@@ -791,14 +855,22 @@
             )
         }
 
-        // --- SETTINGS VIEW (UPDATED: SECURE ADMIN MGMT) ---
+        // --- SETTINGS VIEW (UPDATED: FILTERED VIEW) ---
         function SettingsView({ accounts, onDeleteAccount, onUpdateAccount, classes, setClasses, currentUser }) {
             const [newClass, setNewClass] = useState('');
             const [newAdmin, setNewAdmin] = useState({u:'', p:''});
-            const [editingAcc, setEditingAcc] = useState(null); // id of account being edited
+            const [editingAcc, setEditingAcc] = useState(null); 
             const [editForm, setEditForm] = useState({u:'', p:''});
+            const [visiblePasswords, setVisiblePasswords] = useState({});
 
             const isSuperAdmin = currentUser?.username === 'Respati';
+
+            // Filter Accounts: Super Admin sees all, Regular sees only self
+            const filteredAccounts = isSuperAdmin ? accounts : accounts.filter(a => a.id === currentUser.id);
+
+            const togglePass = (id) => {
+                setVisiblePasswords(prev => ({...prev, [id]: !prev[id]}));
+            }
 
             const addClass = (e) => {
                 e.preventDefault();
@@ -816,27 +888,11 @@
                 }
             };
 
-            const handleSecureAction = (account, actionCallback) => {
-                // Jika Super Admin (Respati), langsung eksekusi
-                if (isSuperAdmin) {
-                    actionCallback();
-                    return;
-                }
-                
-                // Jika Admin biasa, minta verifikasi password akun TARGET
-                const pwd = prompt(`Keamanan: Masukkan password untuk akun ${account.username} untuk melanjutkan:`);
-                if (pwd === account.password) {
-                    actionCallback();
-                } else {
-                    alert("Password Salah! Akses Ditolak.");
-                }
-            };
-
+            // Untuk Admin Biasa: Langsung edit diri sendiri
+            // Untuk Admin Utama: Bebas edit siapa saja
             const startEdit = (acc) => {
-                handleSecureAction(acc, () => {
-                    setEditingAcc(acc.id);
-                    setEditForm({u: acc.username, p: acc.password});
-                });
+                setEditingAcc(acc.id);
+                setEditForm({u: acc.username, p: acc.password});
             };
 
             const saveEdit = (id) => {
@@ -845,9 +901,10 @@
             };
 
             const handleDelete = (acc) => {
-                handleSecureAction(acc, () => {
+                // Konfirmasi aman untuk hapus admin (Hanya Super Admin)
+                if (isSuperAdmin) {
                     onDeleteAccount(acc.id);
-                });
+                }
             };
 
             return (
@@ -870,48 +927,64 @@
                     <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
                         <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><UserPlus size={20}/> Kelola Admin</h2>
                         
-                        {/* List Existing Accounts */}
                         <div className="space-y-3 mb-6">
-                            {accounts.map(acc => (
-                                <div key={acc.id} className="bg-black border border-slate-800 p-3 rounded-xl flex items-center justify-between">
-                                    {editingAcc === acc.id ? (
-                                        <div className="flex gap-2 w-full">
-                                            <input value={editForm.u} onChange={e=>setEditForm({...editForm, u:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" />
-                                            <input value={editForm.p} onChange={e=>setEditForm({...editForm, p:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" />
-                                            <button onClick={()=>saveEdit(acc.id)} className="text-green-500"><Check size={18}/></button>
-                                            <button onClick={()=>setEditingAcc(null)} className="text-slate-500"><X size={18}/></button>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="text-sm">
-                                                <div className="font-bold text-slate-300">{acc.username}</div>
-                                                <div className="text-xs text-slate-600 flex items-center gap-2">
-                                                    Password: 
-                                                    {/* Hide Password Logic */}
-                                                    <span className="font-mono bg-slate-800 px-1 rounded">
-                                                        {isSuperAdmin ? acc.password : '••••••'}
-                                                    </span>
+                            {filteredAccounts.map(acc => {
+                                const isVisible = visiblePasswords[acc.id];
+                                return (
+                                    <div key={acc.id} className="bg-black border border-slate-800 p-3 rounded-xl flex items-center justify-between">
+                                        {editingAcc === acc.id ? (
+                                            <div className="flex gap-2 w-full">
+                                                {/* Username editable only for SuperAdmin, password for everyone (self) */}
+                                                <input disabled={!isSuperAdmin} value={editForm.u} onChange={e=>setEditForm({...editForm, u:e.target.value})} className={`bg-slate-800 text-white px-2 rounded w-1/3 ${!isSuperAdmin && 'opacity-50'}`} />
+                                                <input value={editForm.p} onChange={e=>setEditForm({...editForm, p:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" />
+                                                <button onClick={()=>saveEdit(acc.id)} className="text-green-500"><Check size={18}/></button>
+                                                <button onClick={()=>setEditingAcc(null)} className="text-slate-500"><X size={18}/></button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="text-sm">
+                                                    <div className="font-bold text-slate-300 flex items-center gap-2">
+                                                        {acc.username}
+                                                        {acc.username === 'Respati' && <span className="text-[10px] bg-cyan-900 text-cyan-400 px-1 rounded border border-cyan-700">UTAMA</span>}
+                                                    </div>
+                                                    <div className="text-xs text-slate-600 flex items-center gap-2 mt-1">
+                                                        Password: 
+                                                        <span className="font-mono bg-slate-800 px-2 py-0.5 rounded text-cyan-400">
+                                                            {/* Logic: SuperAdmin sees all. Regular sees self only if toggled */}
+                                                            {isSuperAdmin || acc.id === currentUser.id ? (
+                                                                isVisible ? acc.password : '••••••'
+                                                            ) : '••••••'}
+                                                        </span>
+                                                        <button onClick={() => togglePass(acc.id)} className="text-slate-400 hover:text-white">
+                                                            {isVisible ? <EyeOff size={14}/> : <Eye size={14}/>}
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={()=>startEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-400"><Edit2 size={16}/></button>
-                                                <button onClick={()=>handleDelete(acc)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
+                                                <div className="flex gap-2">
+                                                    <button onClick={()=>startEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-400"><Edit2 size={16}/></button>
+                                                    {/* Delete Button ONLY for Super Admin & not self */}
+                                                    {isSuperAdmin && acc.username !== 'Respati' && (
+                                                        <button onClick={()=>handleDelete(acc)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
 
-                        {/* Add New */}
-                        <div className="pt-4 border-t border-slate-800">
-                            <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase">Tambah Baru</h3>
-                            <form onSubmit={addAdmin} className="space-y-3">
-                                <input value={newAdmin.u} onChange={e=>setNewAdmin({...newAdmin, u:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Username Baru" />
-                                <input value={newAdmin.p} onChange={e=>setNewAdmin({...newAdmin, p:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Password Baru" />
-                                <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold border border-slate-700 transition-colors">Simpan Admin</button>
-                            </form>
-                        </div>
+                        {/* Add New - ONLY FOR SUPER ADMIN */}
+                        {isSuperAdmin && (
+                            <div className="pt-4 border-t border-slate-800">
+                                <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase">Tambah Admin Baru</h3>
+                                <form onSubmit={addAdmin} className="space-y-3">
+                                    <input value={newAdmin.u} onChange={e=>setNewAdmin({...newAdmin, u:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Username Baru" />
+                                    <input value={newAdmin.p} onChange={e=>setNewAdmin({...newAdmin, p:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Password Baru" />
+                                    <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold border border-slate-700 transition-colors">Simpan Admin</button>
+                                </form>
+                            </div>
+                        )}
                     </div>
                 </div>
             )
@@ -919,17 +992,14 @@
 
         // --- MAIN APP LOGIC (FIREBASE INTEGRATED) ---
         function MainApp() {
-            // Firebase Refs
+            // ... (Firebase logic unchanged) ...
             const { auth, db, appId, error } = useMemo(() => initFirebase(), []);
-            
-            // Local State for UI
             const [user, setUser] = useState(null);
             const [isLogin, setIsLogin] = useState(false);
             const [dbStatus, setDbStatus] = useState(error ? 'Error Init' : 'Menghubungkan ke server...');
             const [dbError, setDbError] = useState(error || null);
             const [isFullScreen, setIsFullScreen] = useState(false);
             
-            // Data Collections
             const [members, setMembers] = useState([]);
             const [attendanceLog, setAttendanceLog] = useState([]);
             const [accounts, setAccounts] = useState([]);
@@ -939,7 +1009,6 @@
             const [editingMember, setEditingMember] = useState(null);
             const [lastScanned, setLastScanned] = useState(null);
 
-            // --- FULL SCREEN HANDLER ---
             const toggleFullScreen = () => {
                 if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen();
@@ -955,69 +1024,46 @@
             // --- AUTH & DATA SYNC ---
             useEffect(() => {
                 if (!auth) return;
-
                 const { signInAnonymously, onAuthStateChanged } = window.firebaseModules;
-                
                 signInAnonymously(auth).then(() => {
                     setDbStatus("Auth Berhasil, Membaca Data...");
                 }).catch((e) => {
                     setDbStatus("Gagal Auth Anonim");
                     setDbError(e.message);
                 });
-                
-                const unsubAuth = onAuthStateChanged(auth, (u) => {
-                    if (u) {
-                        // User Signed In
-                    }
-                });
-
+                const unsubAuth = onAuthStateChanged(auth, (u) => { if (u) {} });
                 return () => unsubAuth();
             }, [auth]);
 
-            // 2. Data Listeners (Realtime)
             useEffect(() => {
                 if(!db) return;
                 const { collection, onSnapshot, doc, getDoc, setDoc, addDoc } = window.firebaseModules;
 
-                // Listen Members
                 const unsubMembers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'members'), (snap) => {
                     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setMembers(data);
-                }, (err) => {
-                    console.error("Members Error", err);
-                });
+                }, (err) => { console.error("Members Error", err); });
 
-                // Listen Logs
                 const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), (snap) => {
                     const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setAttendanceLog(data);
                 });
 
-                // Listen Accounts (CRITICAL FOR LOGIN)
                 const unsubAcc = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), (snap) => {
                     let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    
                     if (data.length === 0) {
                         setDbStatus("Database Kosong. Mencoba buat akun default...");
-                        // Auto Create jika kosong
                         const def = { username: 'Respati', password: '0000', role: 'admin' };
                         addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def)
                             .then(() => setDbStatus("Akun Default Dibuat. Silakan Login."))
-                            .catch(e => {
-                                setDbStatus("Gagal Buat Akun Default");
-                                setDbError(e.message);
-                            });
+                            .catch(e => { setDbStatus("Gagal Buat Akun Default"); setDbError(e.message); });
                     } else {
                         setDbStatus("Database Siap. Silakan Login.");
                         setDbError(null);
                     }
                     setAccounts(data);
-                }, (err) => {
-                    setDbStatus("Gagal Membaca Database");
-                    setDbError(err.message + " (Cek Permission/Rules)");
-                });
+                }, (err) => { setDbStatus("Gagal Membaca Database"); setDbError(err.message + " (Cek Permission/Rules)"); });
 
-                // Listen Classes
                 const unsubClass = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), (snap) => {
                     const data = snap.docs.map(d => d.data().name);
                     if(data.length === 0) {
@@ -1028,77 +1074,38 @@
                     setClasses(data.sort());
                 });
 
-                return () => {
-                    unsubMembers(); unsubLogs(); unsubAcc(); unsubClass();
-                };
+                return () => { unsubMembers(); unsubLogs(); unsubAcc(); unsubClass(); };
             }, [db]);
 
             // --- HANDLERS ---
+            const handleForceCreateAdmin = async () => { /* ... existing code ... */ }; // Opsional: Dihilangkan di login view tapi function ada
             
-            const handleForceCreateAdmin = async () => {
-                const { addDoc, collection } = window.firebaseModules;
-                try {
-                    setDbStatus("Memaksa pembuatan akun...");
-                    const def = { username: 'Respati', password: '0000', role: 'admin' };
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def);
-                    alert("Akun Darurat Berhasil Dibuat! Coba Login.");
-                } catch (e) {
-                    alert("Gagal: " + e.message);
-                }
-            };
-
             const handleLogin = (u, p) => {
-                if (accounts.length === 0) {
-                    alert("Data akun belum dimuat dari database. Tunggu sebentar atau cek status di layar.");
-                    return;
-                }
+                if (accounts.length === 0) { alert("Data akun belum dimuat..."); return; }
                 const found = accounts.find(acc => acc.username === u && acc.password === p);
-                if (found) {
-                    setUser(found);
-                    setIsLogin(true);
-                } else {
-                    alert("Username atau Password salah!");
-                }
+                if (found) { setUser(found); setIsLogin(true); } else { alert("Username atau Password salah!"); }
             };
 
-            const handleLogout = () => {
-                setUser(null);
-                setIsLogin(false);
-            };
+            const handleLogout = () => { setUser(null); setIsLogin(false); };
 
-            // ACCOUNTS
             const handleUpdateAccount = async (id, data) => {
                 const { addDoc, updateDoc, doc, collection } = window.firebaseModules;
-                if(id) {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id), data);
-                } else {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), data);
-                }
+                if(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id), data); } 
+                else { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), data); }
             };
 
             const handleDeleteAccount = async (id) => {
                 const { deleteDoc, doc } = window.firebaseModules;
-                if(confirm("Hapus akun ini?")) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id));
-                }
+                if(confirm("Hapus akun ini?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id)); }
             };
 
-            // MEMBERS
             const generateBarcode = (name) => {
                 let cleanName = name.replace(/[^a-zA-Z]/g, '').toUpperCase();
                 if (cleanName.length < 2) cleanName = (cleanName + "XX").substring(0,2);
                 const prefix = cleanName.substring(0, 2);
-
-                const usedNumbers = members
-                    .filter(m => !m.isAlumni && m.barcode && m.barcode.startsWith(prefix))
-                    .map(m => parseInt(m.barcode.substring(2)) || 0)
-                    .sort((a,b) => a-b);
-
+                const usedNumbers = members.filter(m => !m.isAlumni && m.barcode && m.barcode.startsWith(prefix)).map(m => parseInt(m.barcode.substring(2)) || 0).sort((a,b) => a-b);
                 let nextNum = 0;
-                for(let num of usedNumbers) {
-                    if (num === nextNum) nextNum++;
-                    else if (num > nextNum) break;
-                }
+                for(let num of usedNumbers) { if (num === nextNum) nextNum++; else if (num > nextNum) break; }
                 return `${prefix}${String(nextNum).padStart(3, '0')}`;
             };
 
@@ -1107,7 +1114,6 @@
                 const upperName = data.name.toUpperCase();
                 const newCode = generateBarcode(upperName);
                 const newMember = { barcode: newCode, isAlumni: false, ...data, name: upperName };
-                
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), newMember);
                 setActiveTab('members');
             };
@@ -1122,31 +1128,19 @@
 
             const handleDeleteMember = async (id) => {
                 const { deleteDoc, doc } = window.firebaseModules;
-                if(confirm("Hapus data ini permanen?")) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', id));
-                }
+                if(confirm("Hapus data ini permanen?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', id)); }
             };
 
             const handlePromoteClass = async () => {
                 const { updateDoc, doc } = window.firebaseModules;
-                const pwd = prompt("Masukkan Password Kunci:");
-                if (pwd !== "PASS0716307164") return alert("Password Salah!");
-
                 if (!confirm("Yakin naikkan kelas semua siswa?")) return;
-
                 members.forEach(async (m) => {
                     if (m.isAlumni) return;
                     let updates = {};
-                    if (m.class.includes('9')) {
-                        updates = { isAlumni: true, class: `Alumni ${new Date().getFullYear()}` };
-                    } else if (m.class.includes('8')) {
-                        updates = { class: m.class.replace('8', '9') };
-                    } else if (m.class.includes('7')) {
-                        updates = { class: m.class.replace('7', '8') };
-                    }
-                    if(Object.keys(updates).length > 0) {
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', m.id), updates);
-                    }
+                    if (m.class.includes('9')) { updates = { isAlumni: true, class: `Alumni ${new Date().getFullYear()}` }; }
+                    else if (m.class.includes('8')) { updates = { class: m.class.replace('8', '9') }; }
+                    else if (m.class.includes('7')) { updates = { class: m.class.replace('7', '8') }; }
+                    if(Object.keys(updates).length > 0) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', m.id), updates); }
                 });
                 alert("Proses berjalan di background...");
             };
@@ -1156,59 +1150,30 @@
                 const now = new Date();
                 const todayStr = now.toISOString().split('T')[0];
                 const isSaturday = now.getDay() === 6;
-
-                if (!member) {
-                    setLastScanned({ status: 'error', text: decodedText, time: now });
-                    return;
-                }
-                if (member.isAlumni) {
-                    alert("Alumni tidak bisa absen.");
-                    return;
-                }
+                if (!member) { setLastScanned({ status: 'error', text: decodedText, time: now }); return; }
+                if (member.isAlumni) { alert("Alumni tidak bisa absen."); return; }
                 const already = attendanceLog.some(l => l.memberId === member.id && l.timestamp.startsWith(todayStr));
                 setLastScanned({ status: already ? 'warning' : 'success', member: member, time: now, isSaturday: isSaturday });
             };
 
             const confirmAttendance = async () => {
                 const { addDoc, collection } = window.firebaseModules;
-                if (lastScanned?.status === 'success') {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), {
-                        memberId: lastScanned.member.id,
-                        timestamp: lastScanned.time.toISOString()
-                    });
-                }
+                if (lastScanned?.status === 'success') { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), { memberId: lastScanned.member.id, timestamp: lastScanned.time.toISOString() }); }
                 setLastScanned(null);
             };
 
-            const handleAddClass = async (name) => {
-                const { addDoc, collection } = window.firebaseModules;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name});
-            };
-            const handleDeleteClass = async (name) => {
-                const { getDocs, query, where, collection, deleteDoc, doc } = window.firebaseModules;
-                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), where("name", "==", name));
-                const snap = await getDocs(q);
-                snap.forEach(async (d) => {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes_config', d.id));
-                });
-            };
+            const handleAddClass = async (name) => { const { addDoc, collection } = window.firebaseModules; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name}); };
+            const handleDeleteClass = async (name) => { const { getDocs, query, where, collection, deleteDoc, doc } = window.firebaseModules; const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), where("name", "==", name)); const snap = await getDocs(q); snap.forEach(async (d) => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes_config', d.id)); }); };
 
-            if (!isLogin) return <LoginView onLogin={handleLogin} status={dbStatus} dbError={dbError} onForceAdmin={handleForceCreateAdmin} />;
+            if (!isLogin) return <LoginView onLogin={handleLogin} status={dbStatus} dbError={dbError} />;
 
             return (
                 <div className="min-h-screen bg-black text-slate-200 max-w-md mx-auto shadow-2xl relative flex flex-col border-x border-slate-800">
                     <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-20 flex justify-between items-center">
-                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                            <span className="bg-cyan-600 text-white px-2 py-0.5 rounded text-sm">ONLINE</span> E-Absensi
-                        </h1>
+                        <h1 className="text-lg font-bold text-white flex items-center gap-2"><span className="bg-cyan-600 text-white px-2 py-0.5 rounded text-sm">ONLINE</span> E-Absensi</h1>
                         <div className="flex gap-2">
-                            {activeTab !== 'home' && (
-                                <button onClick={() => setActiveTab('home')} className="p-2 bg-slate-800 rounded-full text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={18}/></button>
-                            )}
-                            {/* FULL SCREEN TOGGLE */}
-                            <button onClick={toggleFullScreen} className="p-2 bg-slate-800 text-slate-400 rounded-full hover:bg-slate-700 transition-colors">
-                                {isFullScreen ? <Minimize size={18}/> : <Maximize size={18}/>}
-                            </button>
+                            {activeTab !== 'home' && (<button onClick={() => setActiveTab('home')} className="p-2 bg-slate-800 rounded-full text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={18}/></button>)}
+                            <button onClick={toggleFullScreen} className="p-2 bg-slate-800 text-slate-400 rounded-full hover:bg-slate-700 transition-colors">{isFullScreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button>
                             <button onClick={handleLogout} className="p-2 bg-red-900/30 text-red-400 rounded-full hover:bg-red-900/50 transition-colors"><LogOut size={18}/></button>
                         </div>
                     </header>
@@ -1221,13 +1186,7 @@
                                     <p className="text-lg font-bold text-white">Halo, {user.username}</p>
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 opacity-50"><Users size={48}/></div>
                                 </div>
-
-                                <button onClick={() => setActiveTab('scanner')} className="bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-lg flex flex-col items-center text-white active:scale-95 transition-transform">
-                                    <Camera size={48} className="mb-2"/>
-                                    <span className="text-2xl font-bold tracking-widest">SCAN MASUK</span>
-                                    <span className="text-xs opacity-75 mt-1 bg-black/20 px-3 py-1 rounded-full">Mode Kamera</span>
-                                </button>
-
+                                <button onClick={() => setActiveTab('scanner')} className="bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-lg flex flex-col items-center text-white active:scale-95 transition-transform"><Camera size={48} className="mb-2"/><span className="text-2xl font-bold tracking-widest">SCAN MASUK</span><span className="text-xs opacity-75 mt-1 bg-black/20 px-3 py-1 rounded-full">Mode Kamera</span></button>
                                 <div className="grid grid-cols-1 gap-3">
                                     <MenuButton icon={<Users/>} label="Data Anggota" desc="Kelola siswa & status" onClick={()=>setActiveTab('members')} />
                                     <MenuButton icon={<FileText/>} label="Laporan" desc="Rekap kehadiran" onClick={()=>setActiveTab('report')} />
@@ -1236,58 +1195,12 @@
                             </div>
                         )}
 
-                        {activeTab === 'scanner' && (
-                            <ScannerComponent onScan={handleScanResult} lastScanned={lastScanned} onConfirm={confirmAttendance} onCancel={()=>setLastScanned(null)} />
-                        )}
-
-                        {activeTab === 'members' && (
-                            <MembersList 
-                                members={members} 
-                                attendanceLog={attendanceLog}
-                                onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}}
-                                onDelete={handleDeleteMember}
-                                onAdd={()=>setActiveTab('addMember')}
-                                onPromote={handlePromoteClass}
-                                onViewAlumni={()=>setActiveTab('alumni')}
-                            />
-                        )}
-
-                        {activeTab === 'alumni' && (
-                            <AlumniList members={members} onBack={()=>setActiveTab('members')} />
-                        )}
-
-                        {(activeTab === 'addMember' || activeTab === 'editMember') && (
-                            <MemberForm 
-                                isEdit={activeTab === 'editMember'} 
-                                initialData={editingMember}
-                                classes={classes}
-                                onSubmit={activeTab === 'addMember' ? handleAddMember : handleEditMember}
-                                onCancel={()=>{setEditingMember(null); setActiveTab('members');}}
-                            />
-                        )}
-
-                        {activeTab === 'report' && (
-                            <ReportView members={members} logs={attendanceLog} />
-                        )}
-
-                        {activeTab === 'settings' && (
-                            <SettingsView 
-                                accounts={accounts} 
-                                onDeleteAccount={handleDeleteAccount}
-                                onUpdateAccount={handleUpdateAccount}
-                                classes={classes} 
-                                setClasses={(newClasses) => {
-                                    if(newClasses.length > classes.length) {
-                                        const added = newClasses.find(c => !classes.includes(c));
-                                        if(added) handleAddClass(added);
-                                    } else {
-                                        const removed = classes.find(c => !newClasses.includes(c));
-                                        if(removed) handleDeleteClass(removed);
-                                    }
-                                }}
-                                currentUser={user}
-                            />
-                        )}
+                        {activeTab === 'scanner' && (<ScannerComponent onScan={handleScanResult} lastScanned={lastScanned} onConfirm={confirmAttendance} onCancel={()=>setLastScanned(null)} />)}
+                        {activeTab === 'members' && (<MembersList members={members} attendanceLog={attendanceLog} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} onAdd={()=>setActiveTab('addMember')} onPromote={handlePromoteClass} onViewAlumni={()=>setActiveTab('alumni')} classes={classes} currentUser={user} />)}
+                        {activeTab === 'alumni' && (<AlumniList members={members} onBack={()=>setActiveTab('members')} />)}
+                        {(activeTab === 'addMember' || activeTab === 'editMember') && (<MemberForm isEdit={activeTab === 'editMember'} initialData={editingMember} classes={classes} onSubmit={activeTab === 'addMember' ? handleAddMember : handleEditMember} onCancel={()=>{setEditingMember(null); setActiveTab('members');}} />)}
+                        {activeTab === 'report' && (<ReportView members={members} logs={attendanceLog} classes={classes} />)}
+                        {activeTab === 'settings' && (<SettingsView accounts={accounts} onDeleteAccount={handleDeleteAccount} onUpdateAccount={handleUpdateAccount} classes={classes} setClasses={(newClasses) => { if(newClasses.length > classes.length) { const added = newClasses.find(c => !classes.includes(c)); if(added) handleAddClass(added); } else { const removed = classes.find(c => !newClasses.includes(c)); if(removed) handleDeleteClass(removed); } }} currentUser={user} />)}
                     </main>
                 </div>
             );

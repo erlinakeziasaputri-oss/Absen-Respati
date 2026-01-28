@@ -5,11 +5,43 @@ function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
             const videoRef = useRef(null);
             const codeReaderRef = useRef(null);
             const [forceRefresh, setForceRefresh] = useState(0);
+            const [isLibReady, setIsLibReady] = useState(false);
 
-            // 1. Inisialisasi CodeReader SEKALI saja saat mount
+            // 1. Inisialisasi CodeReader dengan AMAN (Tunggu ZXing siap)
             useEffect(() => {
-                codeReaderRef.current = new ZXing.BrowserMultiFormatReader();
+                let interval;
+                const initReader = () => {
+                    if (window.ZXing) {
+                        try {
+                            const { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } = window.ZXing;
+                            const hints = new Map();
+                            const formats = [BarcodeFormat.QR_CODE];
+                            hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+                            
+                            codeReaderRef.current = new BrowserMultiFormatReader(hints);
+                            setIsLibReady(true);
+                        } catch (e) {
+                            console.error("ZXing Init Error:", e);
+                            setCameraError("Gagal inisialisasi scanner.");
+                        }
+                    }
+                };
+
+                if (!window.ZXing) {
+                    interval = setInterval(() => {
+                        if (window.ZXing) {
+                            clearInterval(interval);
+                            initReader();
+                        }
+                    }, 500); // Cek setiap 0.5 detik
+                    // Timeout setelah 10 detik jika internet lambat
+                    setTimeout(() => { if(!window.ZXing) setCameraError("Koneksi lambat/Error memuat library scanner."); }, 10000);
+                } else {
+                    initReader();
+                }
+
                 return () => {
+                    if (interval) clearInterval(interval);
                     if (codeReaderRef.current) {
                         codeReaderRef.current.reset();
                         codeReaderRef.current = null;
@@ -19,24 +51,26 @@ function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
 
             // 2. Kontrol Kamera (Start/Stop)
             useEffect(() => {
-                // Jika sedang menampilkan hasil scan (lastScanned ada), stop kamera
+                // Jangan jalankan jika library belum siap atau sedang menampilkan hasil
+                if (!isLibReady || !codeReaderRef.current) return;
+                
                 if (lastScanned) {
-                    if (codeReaderRef.current) codeReaderRef.current.reset();
+                    codeReaderRef.current.reset();
                     return;
                 }
-
-                // Jika reader belum siap
-                if (!codeReaderRef.current) return;
 
                 let isMounted = true; 
 
                 const startCamera = async () => {
                     try {
                         const codeReader = codeReaderRef.current;
-                        codeReader.reset(); // Reset dulu untuk keamanan
+                        codeReader.reset(); // Reset state sebelumnya
+
+                        // Tunggu elemen video siap di DOM
+                        if (!videoRef.current) return;
 
                         const videoInputDevices = await codeReader.listVideoInputDevices();
-                        // Pilih kamera belakang atau default
+                        // Prioritas kamera belakang
                         const backCamera = videoInputDevices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment'));
                         const selectedDeviceId = backCamera ? backCamera.deviceId : (videoInputDevices.length > 0 ? videoInputDevices[0].deviceId : null);
 
@@ -45,20 +79,18 @@ function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
                             return;
                         }
 
-                        // Delay sedikit untuk stabilitas perpindahan state
+                        // Delay aman untuk transisi UI
                         await new Promise(r => setTimeout(r, 500));
                         if (!isMounted) return;
 
                         if (videoRef.current) {
-                            // Mulai decode
                             await codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
                                 if (!isMounted) return;
                                 if (result) {
                                     const text = result.getText();
                                     setScannedTextDisplay(text);
                                     if (text.length >= 3) {
-                                        // Stop scanning seketika setelah dapat hasil
-                                        codeReader.reset();
+                                        codeReader.reset(); // Stop kamera segera
                                         onScan(text);
                                     }
                                 }
@@ -67,7 +99,10 @@ function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
                         }
                     } catch (err) {
                         console.error("Camera Error:", err);
-                        if(isMounted) setCameraError("Gagal akses kamera. Coba tombol refresh di pojok kanan.");
+                        // Jangan tampilkan error jika hanya karena reset/stop scan normal
+                        if (err.name !== 'NotFoundException' && isMounted) {
+                            setCameraError("Gagal akses kamera. Coba refresh.");
+                        }
                     }
                 };
 
@@ -79,7 +114,7 @@ function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
                         codeReaderRef.current.reset();
                     }
                 };
-            }, [lastScanned, forceRefresh, onScan]); // Dependency list diperbarui
+            }, [isLibReady, lastScanned, forceRefresh, onScan]);
 
             return (
                 <div className="flex flex-col h-full bg-black relative animate-fade-in">
@@ -95,6 +130,7 @@ function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
                             <>
                                 <div className="scanner-overlay"><div className="scan-corner tl"></div><div className="scan-corner tr"></div><div className="scan-corner bl"></div><div className="scan-corner br"></div></div>
                                 {scannedTextDisplay && (<div className="absolute bottom-10 bg-black/50 text-cyan-400 px-4 py-2 rounded-full backdrop-blur font-mono text-xs border border-cyan-500/30">Mendeteksi QR: {scannedTextDisplay}...</div>)}
+                                {!isLibReady && <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-white text-xs">Memuat Engine Scanner...</div>}
                             </>
                         )}
                         

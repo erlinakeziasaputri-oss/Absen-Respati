@@ -54,7 +54,7 @@
             top: 0; left: 0; right: 0; bottom: 0;
             border-style: solid;
             border-color: rgba(0, 0, 0, 0.6);
-            border-width: 60px;
+            border-width: 60px; /* Window Scanner */
             pointer-events: none;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
         }
@@ -70,13 +70,23 @@
         .bl { bottom: 60px; left: 60px; border-width: 0 0 4px 4px; }
         .br { bottom: 60px; right: 60px; border-width: 0 4px 4px 0; }
 
-        video { object-fit: cover; width: 100%; height: 100%; }
-        .cropper-view-box, .cropper-face { border-radius: 50%; }
+        video {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Cropper Customization */
+        .cropper-view-box,
+        .cropper-face {
+            border-radius: 50%;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
+    <!-- MAIN REACT CODE -->
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
@@ -84,6 +94,7 @@
         const initFirebase = () => {
             if (!window.firebaseModules) return null;
             const { initializeApp, getAuth, getFirestore } = window.firebaseModules;
+            
             const firebaseConfig = {
                 apiKey: "AIzaSyByW3uTI5jFFA0OvkYHBkePHOqcHydWjD8",
                 authDomain: "absensi-respati.firebaseapp.com",
@@ -92,6 +103,7 @@
                 messagingSenderId: "1016703829451",
                 appId: "1:1016703829451:web:217548965e02489b6d224e"
             };
+
             try {
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
@@ -104,6 +116,7 @@
             }
         };
 
+        // --- IKON SVG INTERNAL ---
         const IconBase = ({ children, size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
@@ -142,10 +155,11 @@
             PieChart: (props) => <IconBase {...props}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></IconBase>,
             Clipboard: (props) => <IconBase {...props}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></IconBase>,
             Calendar: (props) => <IconBase {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></IconBase>,
-            Bell: (props) => <IconBase {...props}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></IconBase>
+            Bell: (props) => <IconBase {...props}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></IconBase>,
+            UserCheck: (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></IconBase>
         };
 
-        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info, Maximize, Minimize, Eye, EyeOff, Image, PieChart, Clipboard, Calendar, Bell } = Icons;
+        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info, Maximize, Minimize, Eye, EyeOff, Image, PieChart, Clipboard, Calendar, Bell, UserCheck } = Icons;
 
         // --- IMAGE COMPRESSION ---
         const compressImage = (file) => {
@@ -209,8 +223,8 @@
             )
         }
 
+        // --- SCANNER COMPONENT (FIXED REOPEN ISSUE) ---
         function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
-            // ... (Same scanner implementation)
             const [manualCode, setManualCode] = useState('');
             const [cameraError, setCameraError] = useState('');
             const [scannedTextDisplay, setScannedTextDisplay] = useState('');
@@ -219,31 +233,58 @@
 
             useEffect(() => {
                 if(lastScanned) return; 
+
+                let isActive = true;
                 const startZXing = async () => {
+                    // Small delay to ensure unmount cleanup finished
+                    await new Promise(r => setTimeout(r, 200));
+                    if (!isActive) return;
+
                     try {
                         const { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } = ZXing;
                         const hints = new Map();
                         const formats = [BarcodeFormat.QR_CODE];
                         hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+
                         const codeReader = new BrowserMultiFormatReader(hints);
                         codeReaderRef.current = codeReader;
+
                         const videoInputDevices = await codeReader.listVideoInputDevices();
+                        if (videoInputDevices.length === 0) throw new Error("No camera found");
+                        
                         const backCamera = videoInputDevices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment'));
                         const selectedDeviceId = backCamera ? backCamera.deviceId : videoInputDevices[0].deviceId;
-                        await codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
-                            if (result) {
-                                const text = result.getText();
-                                setScannedTextDisplay(text); 
-                                if(text.length < 3) return; 
-                                codeReader.reset();
-                                onScan(text);
-                            }
-                        });
+
+                        if (videoRef.current && isActive) {
+                            await codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
+                                if (result && isActive) {
+                                    const text = result.getText();
+                                    setScannedTextDisplay(text); 
+                                    if(text.length < 3) return; 
+                                    // Stop scanning immediately upon success
+                                    codeReader.reset();
+                                    onScan(text);
+                                }
+                            });
+                        }
                         setCameraError('');
-                    } catch (err) { console.error(err); setCameraError("Gagal akses kamera (Pastikan Izin Diberikan)."); }
+                    } catch (err) {
+                        if (isActive) {
+                            console.error(err);
+                            setCameraError("Gagal akses kamera (Pastikan Izin Diberikan).");
+                        }
+                    }
                 };
+
                 startZXing();
-                return () => { if (codeReaderRef.current) { codeReaderRef.current.reset(); } };
+
+                return () => {
+                    isActive = false;
+                    if (codeReaderRef.current) {
+                        codeReaderRef.current.reset();
+                        codeReaderRef.current = null;
+                    }
+                };
             }, [lastScanned]);
 
             return (
@@ -264,7 +305,7 @@
             )
         }
 
-        // --- BARCODE MODAL (FIXED - WHITE BG & DELAY) ---
+        // --- BARCODE MODAL WITH CANVAS FOR TEXT ---
         function BarcodeModal({ member, onClose }) {
             const qrRef = useRef(null);
             
@@ -283,13 +324,46 @@
                             }); 
                         } catch(e) { console.error("QR Error", e); }
                     }
-                }, 100); // Small delay to ensure rendering
+                }, 100); 
                 return () => clearTimeout(renderQR);
             }, [member]);
 
             const download = () => {
-                const img = qrRef.current.querySelector("img");
-                if(img) { const link = document.createElement('a'); link.download = `QR_${member.name}.png`; link.href = img.src; link.click(); }
+                const qrDiv = qrRef.current;
+                const img = qrDiv.querySelector("img");
+                if (!img) return;
+
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                const size = 300;
+                const padding = 20;
+                const textHeight = 60;
+                
+                canvas.width = size;
+                canvas.height = size + textHeight;
+                
+                // Background
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw QR
+                ctx.drawImage(img, padding, padding, size - padding*2, size - padding*2);
+                
+                // Draw Text
+                ctx.fillStyle = "#000000";
+                ctx.font = "bold 20px Arial";
+                ctx.textAlign = "center";
+                
+                const nameParts = member.name.split(' ').slice(0, 2).join(' ');
+                ctx.fillText(nameParts, size/2, size);
+                
+                ctx.font = "16px Arial";
+                ctx.fillText(member.class, size/2, size + 30);
+                
+                const link = document.createElement('a');
+                link.download = `QR_${member.name}.png`;
+                link.href = canvas.toDataURL();
+                link.click();
             };
 
             return (
@@ -297,12 +371,9 @@
                     <div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 flex flex-col items-center shadow-2xl">
                         <h3 className="text-xl font-bold text-white text-center mb-1">{member.name}</h3>
                         <p className="text-cyan-400 mb-6">{member.class}</p>
-                        
-                        {/* FIX: Explicit White Background & Min Dimensions */}
                         <div className="bg-white p-4 rounded-xl w-full flex justify-center mb-6 shadow-inner aspect-square items-center">
                             <div ref={qrRef} className="bg-white p-2"></div> 
                         </div>
-
                         <div className="flex gap-3 w-full">
                             <button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800 transition-colors">Tutup</button>
                             <button onClick={download} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><Download size={16}/> Simpan</button>
@@ -312,376 +383,52 @@
             );
         }
 
-        function NotificationView({ notifications, onClear, onHandleDelete, onClose }) {
-            return (
-                <div className="fixed inset-0 z-50 bg-black/95 flex flex-col animate-fade-in">
-                    <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
-                        <button onClick={onClose} className="text-slate-400 hover:text-white"><ChevronLeft size={24}/></button>
-                        <h2 className="text-lg font-bold text-white">Notifikasi Admin</h2>
-                        <button onClick={onClear} className="text-xs text-red-400 font-bold">Bersihkan</button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                        {notifications.length === 0 && <div className="text-center text-slate-500 mt-10">Tidak ada notifikasi baru.</div>}
-                        {notifications.map(n => (
-                            <div key={n.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                                <div className="flex items-start gap-3">
-                                    <div className={`p-2 rounded-full ${n.type === 'delete_request' ? 'bg-red-900/30 text-red-400' : 'bg-blue-900/30 text-blue-400'}`}>
-                                        {n.type === 'delete_request' ? <Trash2 size={18}/> : <Lock size={18}/>}
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm text-slate-300">
-                                            <span className="font-bold text-white">{n.admin}</span> 
-                                            {n.type === 'password_change' ? ' telah mengubah passwordnya.' : ` meminta izin menghapus anggota:`}
-                                        </p>
-                                        {n.type === 'delete_request' && (
-                                            <div className="mt-2 bg-black/30 p-2 rounded border border-slate-700">
-                                                <p className="font-bold text-white text-sm">{n.memberName}</p>
-                                                <p className="text-xs text-slate-500">ID: {n.memberId}</p>
-                                                <button onClick={() => onHandleDelete(n)} className="mt-2 w-full py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded">
-                                                    Setujui & Hapus
-                                                </button>
-                                            </div>
-                                        )}
-                                        <p className="text-[10px] text-slate-600 mt-2">{new Date(n.timestamp).toLocaleString()}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )
-        }
-
-        // ... (DateSelectionModal, CropModal, DispensationModal, Lightbox, StatisticsModal unchanged)
+        // ... (NotificationView, DateSelectionModal, CropModal, DispensationModal, StudentSelectionModal, Lightbox unchanged)
+        function NotificationView({ notifications, onClear, onHandleDelete, onClose }) { return ( <div className="fixed inset-0 z-50 bg-black/95 flex flex-col animate-fade-in"> <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900"> <button onClick={onClose} className="text-slate-400 hover:text-white"><ChevronLeft size={24}/></button> <h2 className="text-lg font-bold text-white">Notifikasi Admin</h2> <button onClick={onClear} className="text-xs text-red-400 font-bold">Bersihkan</button> </div> <div className="flex-1 overflow-y-auto p-4 space-y-3"> {notifications.length === 0 && <div className="text-center text-slate-500 mt-10">Tidak ada notifikasi baru.</div>} {notifications.map(n => ( <div key={n.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl"> <div className="flex items-start gap-3"> <div className={`p-2 rounded-full ${n.type.includes('delete') ? 'bg-red-900/30 text-red-400' : 'bg-blue-900/30 text-blue-400'}`}> {n.type.includes('delete') ? <Trash2 size={18}/> : <Lock size={18}/>} </div> <div className="flex-1"> <p className="text-sm text-slate-300"> <span className="font-bold text-white">{n.admin}</span> {n.type === 'password_change' ? ' telah mengubah passwordnya.' : n.type === 'delete_class_request' ? ` meminta izin menghapus kelas:` : ` meminta izin menghapus anggota:`} </p> {n.type === 'delete_request' && ( <div className="mt-2 bg-black/30 p-2 rounded border border-slate-700"> <p className="font-bold text-white text-sm">{n.memberName}</p> <p className="text-xs text-slate-500">ID: {n.memberId}</p> <button onClick={() => onHandleDelete(n)} className="mt-2 w-full py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded"> Setujui & Hapus </button> </div> )} {n.type === 'delete_class_request' && ( <div className="mt-2 bg-black/30 p-2 rounded border border-slate-700"> <p className="font-bold text-white text-sm">Kelas: {n.className}</p> <button onClick={() => onHandleDelete(n)} className="mt-2 w-full py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded"> Setujui & Hapus </button> </div> )} <p className="text-[10px] text-slate-600 mt-2">{new Date(n.timestamp).toLocaleString()}</p> </div> </div> </div> ))} </div> </div> ) }
         function DateSelectionModal({ onConfirm, onClose }) { const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); const today = new Date(); const todayStr = today.toISOString().split('T')[0]; const isSaturday = today.getDay() === 6; const handleConfirm = () => { const dateObj = new Date(selectedDate); if (dateObj > today) return alert("Tidak bisa memilih tanggal masa depan!"); onConfirm(dateObj); }; return ( <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"> <div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 shadow-2xl"> <h3 className="text-lg font-bold text-white mb-4">Pilih Tanggal Absen</h3> <div className="space-y-4"> <button onClick={() => onConfirm(today)} disabled={!isSaturday} className={`w-full py-3 rounded-xl font-bold border flex items-center justify-center gap-2 ${isSaturday ? 'bg-cyan-600 border-cyan-600 text-white hover:bg-cyan-500' : 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'}`} > <Calendar size={18}/> Absen Hari Ini (Sabtu) </button> <div className="relative border-t border-slate-700 pt-4"> <label className="text-xs text-slate-400 block mb-2">Atau Pilih Tanggal Manual (Masa Lalu):</label> <input type="date" max={todayStr} value={selectedDate} onChange={(e)=>setSelectedDate(e.target.value)} className="w-full bg-black border border-slate-700 text-white p-3 rounded-xl outline-none focus:border-cyan-500" /> </div> <div className="flex gap-3 mt-4"> <button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800">Batal</button> <button onClick={handleConfirm} className="flex-1 py-3 bg-white text-black font-bold rounded-xl hover:bg-slate-200">Lanjut</button> </div> </div> </div> </div> ) }
         function CropModal({ imageSrc, onCancel, onCrop }) { const imageRef = useRef(null); const cropperRef = useRef(null); useEffect(() => { if(imageRef.current) { const cropper = new Cropper(imageRef.current, { aspectRatio: 1, viewMode: 1, dragMode: 'move', autoCropArea: 1, responsive: true, restore: false, guides: true, center: true, highlight: false, cropBoxMovable: true, cropBoxResizable: true, toggleDragModeOnDblclick: false }); cropperRef.current = cropper; } return () => { if(cropperRef.current) cropperRef.current.destroy(); } }, [imageSrc]); const handleCrop = () => { if(cropperRef.current) { const canvas = cropperRef.current.getCroppedCanvas({ width: 300, height: 300, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' }); const dataUrl = canvas.toDataURL('image/jpeg', 0.8); onCrop(dataUrl); } }; return ( <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4 animate-fade-in"> <div className="bg-slate-900 w-full max-w-md p-4 rounded-2xl flex flex-col h-[80vh] border border-slate-700"> <h3 className="text-white font-bold mb-4 text-center">Sesuaikan Foto</h3> <div className="flex-1 bg-black relative overflow-hidden rounded-xl border border-slate-700"><img ref={imageRef} src={imageSrc} style={{maxWidth:'100%', maxHeight:'100%', display: 'block'}} /></div> <div className="flex gap-3 mt-4"><button onClick={onCancel} className="flex-1 py-3 border border-slate-600 text-slate-300 font-bold rounded-xl hover:bg-slate-800">Batal</button><button onClick={handleCrop} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg">Simpan</button></div> </div> </div> ) }
         function DispensationModal({ members, onSave, onClose }) { const [selectedIds, setSelectedIds] = useState([]); const [filterClass, setFilterClass] = useState('all'); const [searchQuery, setSearchQuery] = useState(''); const activeMembers = members.filter(m => !m.isAlumni); const filteredMembers = activeMembers.filter(m => { const matchClass = filterClass === 'all' || m.class.startsWith(filterClass); const matchName = m.name.toLowerCase().includes(searchQuery.toLowerCase()); return matchClass && matchName; }).sort((a,b) => a.class.localeCompare(b.class, 'id', {numeric:true}) || a.name.localeCompare(b.name)); const toggleSelect = (id) => { if (selectedIds.includes(id)) { setSelectedIds(selectedIds.filter(sid => sid !== id)); } else { setSelectedIds([...selectedIds, id]); } }; const handleSubmit = () => { if (selectedIds.length === 0) return alert("Pilih siswa terlebih dahulu"); onSave(selectedIds); }; return ( <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"> <div className="bg-slate-900 w-full max-w-md p-6 rounded-3xl border border-slate-700 shadow-2xl flex flex-col h-[80vh]"> <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold text-white flex items-center gap-2"><Clipboard className="text-cyan-400"/> Input Dispensasi</h2><button onClick={onClose} className="text-slate-500 hover:text-white"><X size={24}/></button></div> <div className="space-y-3 mb-4"><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Cari nama..." className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500"/><div className="flex gap-2">{['all', '7', '8', '9'].map(c => (<button key={c} onClick={()=>setFilterClass(c)} className={`flex-1 py-1.5 text-xs font-bold rounded-lg border ${filterClass===c ? 'bg-cyan-900 border-cyan-500 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>{c==='all'?'Semua':`Kls ${c}`}</button>))}</div></div> <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">{filteredMembers.map(m => (<div key={m.id} onClick={()=>toggleSelect(m.id)} className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${selectedIds.includes(m.id) ? 'bg-cyan-900/30 border-cyan-500' : 'bg-slate-800 border-slate-700 hover:bg-slate-700'}`}><div><p className="font-bold text-slate-200 text-sm">{m.name}</p><p className="text-xs text-slate-500">{m.class}</p></div><div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedIds.includes(m.id) ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>{selectedIds.includes(m.id) && <Check size={14} className="text-black"/>}</div></div>))}</div> <div className="mt-4 pt-4 border-t border-slate-800"><button onClick={handleSubmit} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled={selectedIds.length===0}>Simpan ({selectedIds.length})</button></div> </div> </div> ); }
+        function StudentSelectionModal({ members, onSave, onClose, title, actionLabel }) { const [selectedIds, setSelectedIds] = useState([]); const [filterClass, setFilterClass] = useState('all'); const [searchQuery, setSearchQuery] = useState(''); const activeMembers = members.filter(m => !m.isAlumni); const filteredMembers = activeMembers.filter(m => { const matchClass = filterClass === 'all' || m.class.startsWith(filterClass); const matchName = m.name.toLowerCase().includes(searchQuery.toLowerCase()); return matchClass && matchName; }).sort((a,b) => a.class.localeCompare(b.class, 'id', {numeric:true}) || a.name.localeCompare(b.name)); const toggleSelect = (id) => { if (selectedIds.includes(id)) { setSelectedIds(selectedIds.filter(sid => sid !== id)); } else { setSelectedIds([...selectedIds, id]); } }; const handleSubmit = () => { if (selectedIds.length === 0) return alert("Pilih siswa terlebih dahulu"); onSave(selectedIds); }; return ( <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"> <div className="bg-slate-900 w-full max-w-md p-6 rounded-3xl border border-slate-700 shadow-2xl flex flex-col h-[80vh]"> <div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold text-white flex items-center gap-2"><Clipboard className="text-cyan-400"/> {title}</h2><button onClick={onClose} className="text-slate-500 hover:text-white"><X size={24}/></button></div> <div className="space-y-3 mb-4"><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Cari nama..." className="w-full bg-slate-800 border border-slate-700 text-white px-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500"/><div className="flex gap-2">{['all', '7', '8', '9'].map(c => (<button key={c} onClick={()=>setFilterClass(c)} className={`flex-1 py-1.5 text-xs font-bold rounded-lg border ${filterClass===c ? 'bg-cyan-900 border-cyan-500 text-cyan-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>{c==='all'?'Semua':`Kls ${c}`}</button>))}</div></div> <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">{filteredMembers.map(m => (<div key={m.id} onClick={()=>toggleSelect(m.id)} className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${selectedIds.includes(m.id) ? 'bg-cyan-900/30 border-cyan-500' : 'bg-slate-800 border-slate-700 hover:bg-slate-700'}`}><div><p className="font-bold text-slate-200 text-sm">{m.name}</p><p className="text-xs text-slate-500">{m.class}</p></div><div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedIds.includes(m.id) ? 'bg-cyan-500 border-cyan-500' : 'border-slate-500'}`}>{selectedIds.includes(m.id) && <Check size={14} className="text-black"/>}</div></div>))}</div> <div className="mt-4 pt-4 border-t border-slate-800"><button onClick={handleSubmit} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled={selectedIds.length===0}>{actionLabel} ({selectedIds.length})</button></div> </div> </div> ); }
         function Lightbox({ src, onClose }) { return ( <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center animate-fade-in" onClick={onClose}><button onClick={onClose} className="absolute top-4 right-4 text-white p-2 bg-black/50 rounded-full hover:bg-white/20 transition-colors"><X size={32}/></button><img src={src} className="max-w-full max-h-full object-contain" onClick={(e)=>e.stopPropagation()} /></div> ) }
-        function StatisticsModal({ members, logs, onClose }) { const [viewMode, setViewMode] = useState('month'); const [selectedDate, setSelectedDate] = useState(new Date()); const activeMembers = members.filter(m => !m.isAlumni); const totalMembers = activeMembers.length; const cls7 = activeMembers.filter(m => m.class.startsWith('7')).length; const cls8 = activeMembers.filter(m => m.class.startsWith('8')).length; const cls9 = activeMembers.filter(m => m.class.startsWith('9')).length; const totalL = activeMembers.filter(m => m.gender === 'L').length; const totalP = activeMembers.filter(m => m.gender === 'P').length; const calculatePercentage = (logSubset) => { if (logSubset.length === 0) return 0; const uniqueDates = [...new Set(logSubset.map(l => l.timestamp.split('T')[0]))]; if (uniqueDates.length === 0) return 0; const totalPossible = totalMembers * uniqueDates.length; if(totalPossible === 0) return 0; return Math.round((logSubset.length / totalPossible) * 100); }; const getStats = () => { const year = selectedDate.getFullYear(); const month = selectedDate.getMonth(); const relevantLogs = logs.filter(log => { const logDate = new Date(log.timestamp); return viewMode === 'month' ? (logDate.getFullYear() === year && logDate.getMonth() === month) : (logDate.getFullYear() === year); }); const mainAvg = calculatePercentage(relevantLogs); let subStats = []; if (viewMode === 'month') { for(let i=0; i<4; i++) { const start = i*7 + 1; const end = (i===3) ? 31 : (i+1)*7; const weekLogs = relevantLogs.filter(l => { const d = new Date(l.timestamp).getDate(); return d >= start && d <= end; }); subStats.push({ label: `Minggu ${i+1}`, val: calculatePercentage(weekLogs) }); } } else { for(let i=0; i<12; i++) { const monthLogs = relevantLogs.filter(l => new Date(l.timestamp).getMonth() === i); const monthName = new Date(year, i, 1).toLocaleString('id-ID', {month:'short'}); subStats.push({ label: monthName, val: calculatePercentage(monthLogs) }); } } return { mainAvg, subStats }; }; const stats = getStats(); const navigateDate = (dir) => { const newDate = new Date(selectedDate); if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + dir); else newDate.setFullYear(newDate.getFullYear() + dir); setSelectedDate(newDate); }; return ( <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"> <div className="bg-slate-900 w-full max-w-md p-6 rounded-3xl border border-slate-700 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"> <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={24}/></button> <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><PieChart className="text-cyan-400"/> Statistik Keaktifan</h2> <div className="grid grid-cols-2 gap-3 mb-6"> <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700"> <p className="text-xs text-slate-400 uppercase font-bold">Total Anggota</p> <p className="text-3xl font-bold text-white mt-1">{totalMembers}</p> </div> <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex flex-col justify-center gap-1"> <div className="flex justify-between text-xs text-slate-300"><span>Kelas 7:</span> <span className="font-bold text-white">{cls7}</span></div> <div className="flex justify-between text-xs text-slate-300"><span>Kelas 8:</span> <span className="font-bold text-white">{cls8}</span></div> <div className="flex justify-between text-xs text-slate-300"><span>Kelas 9:</span> <span className="font-bold text-white">{cls9}</span></div> </div> </div> <div className="flex bg-slate-800 rounded-xl p-1 mb-4 border border-slate-700"> <button onClick={()=>setViewMode('month')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${viewMode==='month'?'bg-cyan-600 text-white':'text-slate-400 hover:text-white'}`}>Bulanan</button> <button onClick={()=>setViewMode('year')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${viewMode==='year'?'bg-cyan-600 text-white':'text-slate-400 hover:text-white'}`}>Tahunan</button> </div> <div className="flex items-center justify-between mb-6 bg-black/30 p-2 rounded-xl border border-slate-700"> <button onClick={()=>navigateDate(-1)} className="p-1 hover:text-cyan-400 text-slate-400"><ChevronLeft/></button> <span className="font-bold text-white text-sm">{viewMode === 'month' ? selectedDate.toLocaleString('id-ID', {month:'long', year:'numeric'}) : selectedDate.getFullYear()}</span> <button onClick={()=>navigateDate(1)} className="p-1 hover:text-cyan-400 text-slate-400"><ChevronRight/></button> </div> <div className="flex-1 overflow-y-auto no-scrollbar space-y-4"> <div className="text-center"> <p className="text-xs text-slate-400 mb-1">Rata-rata {viewMode === 'month' ? 'Bulanan' : 'Tahunan'}</p> <div className="text-4xl font-bold text-cyan-400">{stats.mainAvg}%</div> </div> <div className="border-t border-slate-700 pt-4"> <p className="text-xs text-slate-400 font-bold mb-3 uppercase">Rincian per {viewMode === 'month' ? 'Minggu' : 'Bulan'}</p> <div className="space-y-3"> {stats.subStats.map((sub, idx) => ( <div key={idx} className="space-y-1"> <div className="flex justify-between text-xs"> <span className="text-slate-300">{sub.label}</span> <span className="text-white font-bold">{sub.val}%</span> </div> <div className="h-2 bg-slate-800 rounded-full overflow-hidden"> <div className="h-full bg-cyan-600 rounded-full" style={{width: `${sub.val}%`}}></div> </div> </div> ))} </div> </div> </div> </div> </div> ) }
+        function StatisticsModal({ members, logs, onClose }) { const [viewMode, setViewMode] = useState('month'); const [selectedDate, setSelectedDate] = useState(new Date()); const activeMembers = members.filter(m => !m.isAlumni); const totalMembers = activeMembers.length; const cls7Members = activeMembers.filter(m => m.class.startsWith('7')); const cls7 = cls7Members.length; const cls7L = cls7Members.filter(m => m.gender === 'L').length; const cls7P = cls7Members.filter(m => m.gender === 'P').length; const cls8Members = activeMembers.filter(m => m.class.startsWith('8')); const cls8 = cls8Members.length; const cls8L = cls8Members.filter(m => m.gender === 'L').length; const cls8P = cls8Members.filter(m => m.gender === 'P').length; const cls9Members = activeMembers.filter(m => m.class.startsWith('9')); const cls9 = cls9Members.length; const cls9L = cls9Members.filter(m => m.gender === 'L').length; const cls9P = cls9Members.filter(m => m.gender === 'P').length; const totalL = activeMembers.filter(m => m.gender === 'L').length; const totalP = activeMembers.filter(m => m.gender === 'P').length; const calculatePercentage = (logSubset) => { if (logSubset.length === 0) return 0; const uniqueDates = [...new Set(logSubset.map(l => l.timestamp.split('T')[0]))]; if (uniqueDates.length === 0) return 0; const totalPossible = totalMembers * uniqueDates.length; if(totalPossible === 0) return 0; return Math.round((logSubset.length / totalPossible) * 100); }; const getStats = () => { const year = selectedDate.getFullYear(); const month = selectedDate.getMonth(); const relevantLogs = logs.filter(log => { const logDate = new Date(log.timestamp); return viewMode === 'month' ? (logDate.getFullYear() === year && logDate.getMonth() === month) : (logDate.getFullYear() === year); }); const mainAvg = calculatePercentage(relevantLogs); let subStats = []; if (viewMode === 'month') { for(let i=0; i<4; i++) { const start = i*7 + 1; const end = (i===3) ? 31 : (i+1)*7; const weekLogs = relevantLogs.filter(l => { const d = new Date(l.timestamp).getDate(); return d >= start && d <= end; }); subStats.push({ label: `Minggu ${i+1}`, val: calculatePercentage(weekLogs) }); } } else { for(let i=0; i<12; i++) { const monthLogs = relevantLogs.filter(l => new Date(l.timestamp).getMonth() === i); const monthName = new Date(year, i, 1).toLocaleString('id-ID', {month:'short'}); subStats.push({ label: monthName, val: calculatePercentage(monthLogs) }); } } return { mainAvg, subStats }; }; const stats = getStats(); const navigateDate = (dir) => { const newDate = new Date(selectedDate); if (viewMode === 'month') newDate.setMonth(newDate.getMonth() + dir); else newDate.setFullYear(newDate.getFullYear() + dir); setSelectedDate(newDate); }; return ( <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in"> <div className="bg-slate-900 w-full max-w-md p-6 rounded-3xl border border-slate-700 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"> <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={24}/></button> <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2"><PieChart className="text-cyan-400"/> Statistik Keaktifan</h2> <div className="grid grid-cols-2 gap-3 mb-6"> <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700"> <p className="text-xs text-slate-400 uppercase font-bold">Total Anggota</p> <p className="text-3xl font-bold text-white mt-1">{totalMembers}</p> </div> <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex flex-col justify-center gap-2"> <div className="flex justify-between text-xs text-slate-300 items-center"> <span>Kelas 7:</span> <div className="text-right"><span className="font-bold text-white block">{cls7}</span><span className="text-[10px] text-slate-500">L:{cls7L} P:{cls7P}</span></div> </div> <div className="flex justify-between text-xs text-slate-300 items-center"> <span>Kelas 8:</span> <div className="text-right"><span className="font-bold text-white block">{cls8}</span><span className="text-[10px] text-slate-500">L:{cls8L} P:{cls8P}</span></div> </div> <div className="flex justify-between text-xs text-slate-300 items-center"> <span>Kelas 9:</span> <div className="text-right"><span className="font-bold text-white block">{cls9}</span><span className="text-[10px] text-slate-500">L:{cls9L} P:{cls9P}</span></div> </div> </div> </div> <div className="flex bg-slate-800 rounded-xl p-1 mb-4 border border-slate-700"> <button onClick={()=>setViewMode('month')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${viewMode==='month'?'bg-cyan-600 text-white':'text-slate-400 hover:text-white'}`}>Bulanan</button> <button onClick={()=>setViewMode('year')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${viewMode==='year'?'bg-cyan-600 text-white':'text-slate-400 hover:text-white'}`}>Tahunan</button> </div> <div className="flex items-center justify-between mb-6 bg-black/30 p-2 rounded-xl border border-slate-700"> <button onClick={()=>navigateDate(-1)} className="p-1 hover:text-cyan-400 text-slate-400"><ChevronLeft/></button> <span className="font-bold text-white text-sm">{viewMode === 'month' ? selectedDate.toLocaleString('id-ID', {month:'long', year:'numeric'}) : selectedDate.getFullYear()}</span> <button onClick={()=>navigateDate(1)} className="p-1 hover:text-cyan-400 text-slate-400"><ChevronRight/></button> </div> <div className="flex-1 overflow-y-auto no-scrollbar space-y-4"> <div className="text-center"> <p className="text-xs text-slate-400 mb-1">Rata-rata {viewMode === 'month' ? 'Bulanan' : 'Tahunan'}</p> <div className="text-4xl font-bold text-cyan-400">{stats.mainAvg}%</div> </div> <div className="border-t border-slate-700 pt-4"> <p className="text-xs text-slate-400 font-bold mb-3 uppercase">Rincian per {viewMode === 'month' ? 'Minggu' : 'Bulan'}</p> <div className="space-y-3"> {stats.subStats.map((sub, idx) => ( <div key={idx} className="space-y-1"> <div className="flex justify-between text-xs"> <span className="text-slate-300">{sub.label}</span> <span className="text-white font-bold">{sub.val}%</span> </div> <div className="h-2 bg-slate-800 rounded-full overflow-hidden"> <div className="h-full bg-cyan-600 rounded-full" style={{width: `${sub.val}%`}}></div> </div> </div> ))} </div> </div> </div> </div> </div> ) }
+        function MembersList({ members, attendanceLog, onEdit, onDelete, onAdd, onPromote, onViewAlumni, classes, currentUser, onRequestDelete }) { const [filterGrade, setFilterGrade] = useState('all'); const [filterSubClass, setFilterSubClass] = useState('all'); const [searchQuery, setSearchQuery] = useState(''); const [selectedBarcode, setSelectedBarcode] = useState(null); const [isPdfModalOpen, setIsPdfModalOpen] = useState(false); const [isStatsOpen, setIsStatsOpen] = useState(false); const [lightboxSrc, setLightboxSrc] = useState(null); const isSuperAdmin = currentUser?.username === 'Respati'; const subClassOptions = useMemo(() => { if (filterGrade === 'all') return []; return classes.filter(c => c.startsWith(filterGrade)).sort(); }, [filterGrade, classes]); const handleGradeChange = (grade) => { setFilterGrade(grade); setFilterSubClass('all'); }; const getStatus = (memberId) => { const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))]; const totalEvents = uniqueDates.length; if (totalEvents === 0) return { label: 'BARU', color: 'bg-slate-700 text-slate-300 border-slate-600' }; const memberEvents = attendanceLog.filter(l => l.memberId === memberId).length; const percentage = (memberEvents / totalEvents) * 100; if (percentage === 0) return { label: 'TIDAK AKTIF', color: 'bg-red-950 text-red-500 border-red-900' }; if (percentage < 40) return { label: 'KURANG AKTIF', color: 'bg-orange-950 text-orange-500 border-orange-900' }; if (percentage < 70) return { label: 'PASIF', color: 'bg-yellow-950 text-yellow-500 border-yellow-900' }; return { label: 'AKTIF', color: 'bg-green-950 text-green-500 border-green-900' }; }; const activeMembers = members.filter(m => !m.isAlumni).filter(m => { const search = searchQuery.toUpperCase(); const matchSearch = m.name.includes(search) || m.class.toUpperCase().includes(search); const matchGrade = filterGrade === 'all' || m.class.startsWith(filterGrade); const matchSubClass = filterSubClass === 'all' || m.class === filterSubClass; return matchSearch && matchGrade && matchSubClass; }).sort((a,b) => { const classComparison = a.class.localeCompare(b.class, 'id', {numeric: true}); if (classComparison !== 0) return classComparison; return a.name.localeCompare(b.name); }); const handlePromoteClick = () => { if (!isSuperAdmin) { alert("Akses Ditolak: Hanya Admin Utama (Respati) yang bisa menaikkan kelas."); return; } const pwd = prompt("Konfirmasi Keamanan: Masukkan Password Admin Utama untuk melanjutkan:"); if (pwd === currentUser.password) { onPromote(); } else { alert("Password Salah!"); } }; const handleDeleteClick = (member) => { if (isSuperAdmin) { onDelete(member.id); } else { onRequestDelete(member); } }; return ( <div className="space-y-4 animate-fade-in"> <div className="flex justify-between items-center"><h2 className="text-lg font-bold text-white">Daftar Anggota</h2></div> <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar"> <button onClick={onAdd} className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><Plus size={14}/> Tambah</button> <button onClick={()=>setIsStatsOpen(true)} className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><PieChart size={14}/> Statistik</button> <button onClick={handlePromoteClick} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors ${isSuperAdmin ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}><TrendingUp size={14}/> Naik Kelas</button> <button onClick={onViewAlumni} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><GraduationCap size={14}/> Alumni</button> <button onClick={()=>setIsPdfModalOpen(true)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><FileDown size={14}/> PDF Anggota</button> </div> <div className="space-y-3"> <div className="relative"><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari nama anggota..." className="w-full bg-slate-900 border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500 transition-colors"/><div className="absolute left-3 top-2.5 text-slate-500"><Search size={16}/></div></div> <div className="flex gap-1 overflow-x-auto no-scrollbar">{['all', '7', '8', '9'].map(c => (<button key={c} onClick={()=>handleGradeChange(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterGrade===c ? 'bg-cyan-600 border-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>{c==='all'?'Semua':`Kelas ${c}`}</button>))}</div> {filterGrade !== 'all' && subClassOptions.length > 0 && (<div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 animate-fade-in"><button onClick={()=>setFilterSubClass('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass==='all' ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>Semua {filterGrade}</button>{subClassOptions.map(c => (<button key={c} onClick={()=>setFilterSubClass(c)} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass===c ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>{c}</button>))}</div>)} </div> <div className="space-y-3 pb-20"> {activeMembers.map(m => { const status = getStatus(m.id); return ( <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between group hover:border-cyan-500/30 transition-all shadow-sm"> <div className="flex-1 min-w-0 mr-2 flex items-center gap-3"> {m.photo ? (<img src={m.photo} className="w-10 h-10 rounded-full object-cover border border-slate-600 cursor-pointer hover:border-cyan-400" alt="" onClick={()=>setLightboxSrc(m.photo)} />) : (<div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500"><Users size={18}/></div>)} <div><div className="flex items-center gap-2 mb-1"><h3 className="font-bold text-white truncate text-sm">{m.name}</h3></div><div className="flex flex-wrap gap-2 text-xs mb-1"><span className="text-cyan-400 font-bold bg-cyan-950/30 px-1.5 py-0.5 rounded border border-cyan-900/50">{m.class}</span><span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${status.color}`}>{status.label}</span></div>{m.phoneNumber && <div className="text-slate-500 text-[10px] flex items-center gap-1"><Phone size={10}/> {m.phoneNumber}</div>}</div> </div> <div className="flex gap-2 shrink-0"> <button onClick={()=>setSelectedBarcode(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg transition-colors"><QrCode size={16}/></button> <button onClick={()=>onEdit(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg transition-colors"><Edit2 size={16}/></button> <button onClick={()=>handleDeleteClick(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-red-400 rounded-lg transition-colors"><Trash2 size={16}/></button> </div> </div> ) })} {activeMembers.length === 0 && <div className="text-center text-slate-600 p-8 border border-dashed border-slate-800 rounded-xl">Tidak ada data.</div>} </div> {selectedBarcode && <BarcodeModal member={selectedBarcode} onClose={()=>setSelectedBarcode(null)} />} {isPdfModalOpen && <PdfDownloadModal members={members} attendanceLog={attendanceLog} onClose={()=>setIsPdfModalOpen(false)} />} {isStatsOpen && <StatisticsModal members={members} logs={attendanceLog} onClose={()=>setIsStatsOpen(false)} />} {lightboxSrc && <Lightbox src={lightboxSrc} onClose={()=>setLightboxSrc(null)} />} </div> ); }
 
-        // --- LIST COMPONENTS ---
-        function MembersList({ members, attendanceLog, onEdit, onDelete, onAdd, onPromote, onViewAlumni, classes, currentUser, onRequestDelete }) {
-            const [filterGrade, setFilterGrade] = useState('all');
-            const [filterSubClass, setFilterSubClass] = useState('all');
-            const [searchQuery, setSearchQuery] = useState('');
-            const [selectedBarcode, setSelectedBarcode] = useState(null);
-            const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
-            const [isStatsOpen, setIsStatsOpen] = useState(false);
-            const [lightboxSrc, setLightboxSrc] = useState(null);
+        // --- REPORT VIEW (UPDATED COLOR CELLS WITH BORDER & LOGIC) ---
+        function ReportView({ members, logs, classes }) { 
+            const [currentDate, setCurrentDate] = useState(new Date()); 
+            const [filterGrade, setFilterGrade] = useState('all'); 
+            const [filterSubClass, setFilterSubClass] = useState('all'); 
+            const [searchQuery, setSearchQuery] = useState(''); 
+            
+            const subClassOptions = useMemo(() => { if (filterGrade === 'all') return []; return classes.filter(c => c.startsWith(filterGrade)).sort(); }, [filterGrade, classes]); 
+            const handleGradeChange = (grade) => { setFilterGrade(grade); setFilterSubClass('all'); }; 
+            
+            const activeMembers = members.filter(m => !m.isAlumni).filter(m => { const search = searchQuery.toUpperCase(); const matchSearch = m.name.includes(search) || m.class.toUpperCase().includes(search); const matchGrade = filterGrade === 'all' || m.class.startsWith(filterGrade); const matchSubClass = filterSubClass === 'all' || m.class === filterSubClass; return matchSearch && matchGrade && matchSubClass; }).sort((a,b) => { const classComparison = a.class.localeCompare(b.class, 'id', {numeric: true}); if (classComparison !== 0) return classComparison; return a.name.localeCompare(b.name); }); 
+            
+            const getSaturdays = (date) => { const year = date.getFullYear(); const month = date.getMonth(); const days = []; let d = new Date(year, month, 1); while(d.getMonth() === month) { if(d.getDay() === 6) days.push(new Date(d)); d.setDate(d.getDate()+1); } return days; }; 
+            const saturdays = getSaturdays(currentDate); 
+            
+            const getAttendance = (memberId, dateObj) => { const dateStr = dateObj.toISOString().split('T')[0]; const log = logs.find(l => l.memberId === memberId && l.timestamp.startsWith(dateStr)); if (!log) return null; return log.status === 'dispensation' ? 'D' : 'H'; }; 
+            
+            const downloadPDF = () => { const doc = new jspdf.jsPDF('l'); doc.text(`Laporan Absensi - ${currentDate.toLocaleString('default',{month:'long', year:'numeric'})}`, 14, 15); doc.setFontSize(10); doc.text("E-Absensi Respati", 14, 22); const head = [['Nama', 'Kelas', ...saturdays.map(d=>d.getDate())]]; const body = activeMembers.map(m => [m.name, m.class, ...saturdays.map(d => { const status = getAttendance(m.id, d); return status || '-'; })]); doc.autoTable({ head, body, startY: 28, headStyles: { fillColor: [8, 145, 178] }, styles: { fontSize: 8 }, didParseCell: function(data) { if (data.section === 'body' && data.column.index > 1) { if (data.cell.raw === 'H') { data.cell.styles.fillColor = [34, 197, 94]; data.cell.styles.textColor = [255, 255, 255]; } else if (data.cell.raw === 'D') { data.cell.styles.fillColor = [59, 130, 246]; data.cell.styles.textColor = [255, 255, 255]; } } } }); doc.save(`Laporan_${currentDate.toISOString().slice(0,7)}.pdf`); }; 
+            
+            return ( <div className="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-full animate-fade-in shadow-xl overflow-hidden"> <div className="p-4 border-b border-slate-800 space-y-3 bg-slate-900 sticky top-0 z-20"> <div className="flex justify-between items-center"><div className="flex gap-2 items-center"><button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700"><ChevronLeft size={20}/></button><div className="text-center px-2"><h2 className="font-bold text-white text-sm">{currentDate.toLocaleString('default',{month:'long', year:'numeric'})}</h2><p className="text-[10px] text-slate-500">{saturdays.length} Sabtu</p></div><button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700"><ChevronRight size={20}/></button></div><button onClick={downloadPDF} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex gap-1"><FileDown size={14}/> PDF</button></div> <div className="space-y-3"><div className="relative"><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari siswa di laporan..." className="w-full bg-black border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-xs outline-none focus:border-cyan-500 transition-colors"/><div className="absolute left-3 top-2 text-slate-500"><Search size={14}/></div></div><div className="flex gap-1 overflow-x-auto no-scrollbar">{['all', '7', '8', '9'].map(c => (<button key={c} onClick={()=>handleGradeChange(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterGrade===c ? 'bg-cyan-600 border-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>{c==='all'?'Semua':`Kelas ${c}`}</button>))}</div>{filterGrade !== 'all' && subClassOptions.length > 0 && (<div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 animate-fade-in"><button onClick={()=>setFilterSubClass('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass==='all' ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>Semua {filterGrade}</button>{subClassOptions.map(c => (<button key={c} onClick={()=>setFilterSubClass(c)} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass===c ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>{c}</button>))}</div>)}</div> </div> <div className="flex-1 overflow-auto"> <table className="w-full text-xs text-left border-collapse"> <thead className="text-slate-400 bg-slate-900 sticky top-0 z-10 shadow-sm"><tr><th className="p-3 border-b border-r border-slate-700 min-w-[120px] sticky left-0 bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Nama</th><th className="p-3 border-b border-r border-slate-700 sticky left-[120px] bg-slate-900 min-w-[50px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Kls</th>{saturdays.map(d => <th key={d} className="p-0 border-b border-r border-slate-700 text-center min-w-[30px] font-normal">{d.getDate()}</th>)}</tr></thead> <tbody> {activeMembers.length > 0 ? activeMembers.map(m => (<tr key={m.id} className="hover:bg-slate-800/50"><td className="p-3 border-b border-r border-slate-700 font-bold text-slate-300 sticky left-0 bg-black min-w-[120px] truncate shadow-[2px_0_5px_rgba(0,0,0,0.5)]"> {m.name.split(' ').slice(0,2).join(' ')} </td><td className="p-3 border-b border-r border-slate-700 text-cyan-500 sticky left-[120px] bg-black shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.class}</td>{saturdays.map(d => { 
+                const status = getAttendance(m.id, d); 
+                const isPast = d < new Date(new Date().setHours(0,0,0,0));
+                let cellColor = ""; 
+                if (status === 'H') cellColor = "bg-green-500"; 
+                else if (status === 'D') cellColor = "bg-blue-500"; 
+                else if (isPast) cellColor = "bg-red-500/50";
+                return (<td key={d} className="p-0 border-b border-r border-slate-700 text-center h-full"><div className={`w-full h-8 ${cellColor} flex items-center justify-center`}></div></td>) 
+            })}</tr>)) : (<tr><td colSpan={saturdays.length + 2} className="p-8 text-center text-slate-500 italic">Data tidak ditemukan untuk filter ini.</td></tr>)} </tbody> </table> </div> </div> ) }
 
-            const isSuperAdmin = currentUser?.username === 'Respati';
-
-            const subClassOptions = useMemo(() => {
-                if (filterGrade === 'all') return [];
-                return classes.filter(c => c.startsWith(filterGrade)).sort();
-            }, [filterGrade, classes]);
-
-            const handleGradeChange = (grade) => { setFilterGrade(grade); setFilterSubClass('all'); };
-
-            const getStatus = (memberId) => {
-                const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
-                const totalEvents = uniqueDates.length;
-                if (totalEvents === 0) return { label: 'BARU', color: 'bg-slate-700 text-slate-300 border-slate-600' };
-                const memberEvents = attendanceLog.filter(l => l.memberId === memberId).length;
-                const percentage = (memberEvents / totalEvents) * 100;
-                if (percentage === 0) return { label: 'TIDAK AKTIF', color: 'bg-red-950 text-red-500 border-red-900' };
-                if (percentage < 40) return { label: 'KURANG AKTIF', color: 'bg-orange-950 text-orange-500 border-orange-900' };
-                if (percentage < 70) return { label: 'PASIF', color: 'bg-yellow-950 text-yellow-500 border-yellow-900' };
-                return { label: 'AKTIF', color: 'bg-green-950 text-green-500 border-green-900' };
-            };
-
-            const activeMembers = members.filter(m => !m.isAlumni)
-                .filter(m => {
-                    const search = searchQuery.toUpperCase();
-                    const matchSearch = m.name.includes(search) || m.class.toUpperCase().includes(search);
-                    const matchGrade = filterGrade === 'all' || m.class.startsWith(filterGrade);
-                    const matchSubClass = filterSubClass === 'all' || m.class === filterSubClass;
-                    return matchSearch && matchGrade && matchSubClass;
-                })
-                .sort((a,b) => {
-                    const classComparison = a.class.localeCompare(b.class, 'id', {numeric: true});
-                    if (classComparison !== 0) return classComparison;
-                    return a.name.localeCompare(b.name);
-                });
-
-            const handlePromoteClick = () => {
-                if (!isSuperAdmin) { alert("Akses Ditolak: Hanya Admin Utama (Respati) yang bisa menaikkan kelas."); return; }
-                const pwd = prompt("Konfirmasi Keamanan: Masukkan Password Admin Utama untuk melanjutkan:");
-                if (pwd === currentUser.password) { onPromote(); } else { alert("Password Salah!"); }
-            };
-
-            // NEW: Delete logic switch
-            const handleDeleteClick = (member) => {
-                if (isSuperAdmin) {
-                    onDelete(member.id);
-                } else {
-                    onRequestDelete(member);
-                }
-            };
-
-            return (
-                <div className="space-y-4 animate-fade-in">
-                    <div className="flex justify-between items-center"><h2 className="text-lg font-bold text-white">Daftar Anggota</h2></div>
-                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                        <button onClick={onAdd} className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><Plus size={14}/> Tambah</button>
-                        <button onClick={()=>setIsStatsOpen(true)} className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><PieChart size={14}/> Statistik</button>
-                        <button onClick={handlePromoteClick} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors ${isSuperAdmin ? 'bg-indigo-600 hover:bg-indigo-500 text-white' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}><TrendingUp size={14}/> Naik Kelas</button>
-                        <button onClick={onViewAlumni} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><GraduationCap size={14}/> Alumni</button>
-                        <button onClick={()=>setIsPdfModalOpen(true)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><FileDown size={14}/> PDF Anggota</button>
-                    </div>
-                    {/* ... Search ... */}
-                    <div className="space-y-3">
-                        <div className="relative"><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari nama anggota..." className="w-full bg-slate-900 border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500 transition-colors"/><div className="absolute left-3 top-2.5 text-slate-500"><Search size={16}/></div></div>
-                        <div className="flex gap-1 overflow-x-auto no-scrollbar">{['all', '7', '8', '9'].map(c => (<button key={c} onClick={()=>handleGradeChange(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterGrade===c ? 'bg-cyan-600 border-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>{c==='all'?'Semua':`Kelas ${c}`}</button>))}</div>
-                        {filterGrade !== 'all' && subClassOptions.length > 0 && (<div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 animate-fade-in"><button onClick={()=>setFilterSubClass('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass==='all' ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>Semua {filterGrade}</button>{subClassOptions.map(c => (<button key={c} onClick={()=>setFilterSubClass(c)} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass===c ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>{c}</button>))}</div>)}
-                    </div>
-                    {/* List */}
-                    <div className="space-y-3 pb-20">
-                        {activeMembers.map(m => {
-                            const status = getStatus(m.id);
-                            return (
-                                <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between group hover:border-cyan-500/30 transition-all shadow-sm">
-                                    <div className="flex-1 min-w-0 mr-2 flex items-center gap-3">
-                                        {m.photo ? (<img src={m.photo} className="w-10 h-10 rounded-full object-cover border border-slate-600 cursor-pointer hover:border-cyan-400" alt="" onClick={()=>setLightboxSrc(m.photo)} />) : (<div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500"><Users size={18}/></div>)}
-                                        <div><div className="flex items-center gap-2 mb-1"><h3 className="font-bold text-white truncate text-sm">{m.name}</h3></div><div className="flex flex-wrap gap-2 text-xs mb-1"><span className="text-cyan-400 font-bold bg-cyan-950/30 px-1.5 py-0.5 rounded border border-cyan-900/50">{m.class}</span><span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${status.color}`}>{status.label}</span></div>{m.phoneNumber && <div className="text-slate-500 text-[10px] flex items-center gap-1"><Phone size={10}/> {m.phoneNumber}</div>}</div>
-                                    </div>
-                                    <div className="flex gap-2 shrink-0">
-                                        <button onClick={()=>setSelectedBarcode(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg transition-colors"><QrCode size={16}/></button>
-                                        <button onClick={()=>onEdit(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg transition-colors"><Edit2 size={16}/></button>
-                                        <button onClick={()=>handleDeleteClick(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-red-400 rounded-lg transition-colors"><Trash2 size={16}/></button>
-                                    </div>
-                                </div>
-                            )
-                        })}
-                        {activeMembers.length === 0 && <div className="text-center text-slate-600 p-8 border border-dashed border-slate-800 rounded-xl">Tidak ada data.</div>}
-                    </div>
-                    {selectedBarcode && <BarcodeModal member={selectedBarcode} onClose={()=>setSelectedBarcode(null)} />}
-                    {isPdfModalOpen && <PdfDownloadModal members={members} attendanceLog={attendanceLog} onClose={()=>setIsPdfModalOpen(false)} />}
-                    {isStatsOpen && <StatisticsModal members={members} logs={attendanceLog} onClose={()=>setIsStatsOpen(false)} />}
-                    {lightboxSrc && <Lightbox src={lightboxSrc} onClose={()=>setLightboxSrc(null)} />}
-                </div>
-            );
-        }
-
-        // ... (ReportView, PdfDownloadModal, AlumniList, MemberForm Unchanged from prev step) ...
-        // Re-injecting ReportView etc for completeness context
-        function ReportView({ members, logs, classes }) { const [currentDate, setCurrentDate] = useState(new Date()); const [filterGrade, setFilterGrade] = useState('all'); const [filterSubClass, setFilterSubClass] = useState('all'); const [searchQuery, setSearchQuery] = useState(''); const subClassOptions = useMemo(() => { if (filterGrade === 'all') return []; return classes.filter(c => c.startsWith(filterGrade)).sort(); }, [filterGrade, classes]); const handleGradeChange = (grade) => { setFilterGrade(grade); setFilterSubClass('all'); }; const activeMembers = members.filter(m => !m.isAlumni).filter(m => { const search = searchQuery.toUpperCase(); const matchSearch = m.name.includes(search) || m.class.toUpperCase().includes(search); const matchGrade = filterGrade === 'all' || m.class.startsWith(filterGrade); const matchSubClass = filterSubClass === 'all' || m.class === filterSubClass; return matchSearch && matchGrade && matchSubClass; }).sort((a,b) => { const classComparison = a.class.localeCompare(b.class, 'id', {numeric: true}); if (classComparison !== 0) return classComparison; return a.name.localeCompare(b.name); }); const getSaturdays = (date) => { const year = date.getFullYear(); const month = date.getMonth(); const days = []; let d = new Date(year, month, 1); while(d.getMonth() === month) { if(d.getDay() === 6) days.push(new Date(d)); d.setDate(d.getDate()+1); } return days; }; const saturdays = getSaturdays(currentDate); const getAttendance = (memberId, dateObj) => { const dateStr = dateObj.toISOString().split('T')[0]; const log = logs.find(l => l.memberId === memberId && l.timestamp.startsWith(dateStr)); if (!log) return null; return log.status === 'dispensation' ? 'D' : 'H'; }; const downloadPDF = () => { const doc = new jspdf.jsPDF('l'); doc.text(`Laporan Absensi - ${currentDate.toLocaleString('default',{month:'long', year:'numeric'})}`, 14, 15); doc.setFontSize(10); doc.text("E-Absensi Respati", 14, 22); const head = [['Nama', 'Kelas', ...saturdays.map(d=>d.getDate())]]; const body = activeMembers.map(m => [m.name, m.class, ...saturdays.map(d => { const status = getAttendance(m.id, d); return status || '-'; })]); doc.autoTable({ head, body, startY: 28, headStyles: { fillColor: [8, 145, 178] }, styles: { fontSize: 8 }, didParseCell: function(data) { if (data.section === 'body' && data.column.index > 1) { if (data.cell.raw === 'H') { data.cell.styles.fillColor = [34, 197, 94]; data.cell.styles.textColor = [255, 255, 255]; } else if (data.cell.raw === 'D') { data.cell.styles.fillColor = [59, 130, 246]; data.cell.styles.textColor = [255, 255, 255]; } } } }); doc.save(`Laporan_${currentDate.toISOString().slice(0,7)}.pdf`); }; return ( <div className="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-full animate-fade-in shadow-xl overflow-hidden"> <div className="p-4 border-b border-slate-800 space-y-3 bg-slate-900 sticky top-0 z-20"> <div className="flex justify-between items-center"><div className="flex gap-2 items-center"><button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700"><ChevronLeft size={20}/></button><div className="text-center px-2"><h2 className="font-bold text-white text-sm">{currentDate.toLocaleString('default',{month:'long', year:'numeric'})}</h2><p className="text-[10px] text-slate-500">{saturdays.length} Sabtu</p></div><button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700"><ChevronRight size={20}/></button></div><button onClick={downloadPDF} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex gap-1"><FileDown size={14}/> PDF</button></div> <div className="space-y-3"><div className="relative"><input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari siswa di laporan..." className="w-full bg-black border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-xs outline-none focus:border-cyan-500 transition-colors"/><div className="absolute left-3 top-2 text-slate-500"><Search size={14}/></div></div><div className="flex gap-1 overflow-x-auto no-scrollbar">{['all', '7', '8', '9'].map(c => (<button key={c} onClick={()=>handleGradeChange(c)} className={`px-4 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterGrade===c ? 'bg-cyan-600 border-cyan-600 text-white shadow-lg shadow-cyan-900/50' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>{c==='all'?'Semua':`Kelas ${c}`}</button>))}</div>{filterGrade !== 'all' && subClassOptions.length > 0 && (<div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 animate-fade-in"><button onClick={()=>setFilterSubClass('all')} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass==='all' ? 'bg-slate-700 text-white border-slate-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>Semua {filterGrade}</button>{subClassOptions.map(c => (<button key={c} onClick={()=>setFilterSubClass(c)} className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-colors whitespace-nowrap ${filterSubClass===c ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>{c}</button>))}</div>)}</div> </div> <div className="flex-1 overflow-auto"> <table className="w-full text-xs text-left border-collapse"> <thead className="text-slate-400 bg-slate-900 sticky top-0 z-10 shadow-sm"><tr><th className="p-3 border-b border-r border-slate-800 min-w-[120px] sticky left-0 bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Nama</th><th className="p-3 border-b border-r border-slate-800 sticky left-[120px] bg-slate-900 min-w-[50px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Kls</th>{saturdays.map(d => <th key={d} className="p-0 border-b border-slate-800 text-center min-w-[30px] font-normal">{d.getDate()}</th>)}</tr></thead> <tbody> {activeMembers.length > 0 ? activeMembers.map(m => (<tr key={m.id} className="hover:bg-slate-800/50"><td className="p-3 border-b border-r border-slate-800 font-bold text-slate-300 sticky left-0 bg-black min-w-[120px] truncate shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.name}</td><td className="p-3 border-b border-r border-slate-800 text-cyan-500 sticky left-[120px] bg-black shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.class}</td>{saturdays.map(d => { const status = getAttendance(m.id, d); let cellColor = "bg-red-500/20"; if (status === 'H') cellColor = "bg-green-500"; else if (status === 'D') cellColor = "bg-blue-500"; return (<td key={d} className="p-0 border-b border-slate-800 text-center h-full"><div className={`w-full h-8 ${cellColor} flex items-center justify-center`}></div></td>) })}</tr>)) : (<tr><td colSpan={saturdays.length + 2} className="p-8 text-center text-slate-500 italic">Data tidak ditemukan untuk filter ini.</td></tr>)} </tbody> </table> </div> </div> ) }
+        // ... (AlumniList, MemberForm, SettingsView, MainApp unchanged) ...
         function AlumniList({ members, onBack, currentUser, onEdit, onDelete }) { const [search, setSearch] = useState(''); const [filterYear, setFilterYear] = useState('all'); const isSuperAdmin = currentUser?.username === 'Respati'; const rawAlumni = members.filter(m => m.isAlumni); const years = useMemo(() => { const y = rawAlumni.map(m => m.class.replace('Alumni ', '')).filter(y => y.match(/^\d{4}$/)); return [...new Set(y)].sort((a,b) => b-a); }, [rawAlumni]); const filteredAlumni = rawAlumni.filter(m => { const mYear = m.class.replace('Alumni ', ''); const matchSearch = m.name.toUpperCase().includes(search.toUpperCase()); const matchYear = filterYear === 'all' || mYear === filterYear; return matchSearch && matchYear; }).sort((a,b) => a.name.localeCompare(b.name)); return ( <div className="space-y-4 animate-fade-in"> <div className="flex items-center gap-2 mb-2"> <button onClick={onBack} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={20}/></button> <h2 className="text-lg font-bold text-cyan-400">Daftar Alumni</h2> </div> <div className="flex gap-2"> <div className="relative flex-1"> <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari Alumni..." className="w-full bg-slate-900 border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500 transition-colors" /> <div className="absolute left-3 top-2.5 text-slate-500"><Search size={16}/></div> </div> <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="bg-slate-900 border border-slate-700 text-white px-3 py-2 rounded-xl text-sm outline-none focus:border-cyan-500" > <option value="all">Semua Tahun</option> {years.map(y => <option key={y} value={y}>{y}</option>)} </select> </div> <div className="space-y-2 pb-20"> {filteredAlumni.map(m => ( <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl opacity-75 flex justify-between items-center hover:opacity-100 transition-opacity"> <div className="flex items-center gap-3 flex-1 min-w-0"> {m.photo ? ( <img src={m.photo} className="w-10 h-10 rounded-full object-cover border border-slate-600 grayscale" alt="" /> ) : ( <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-500"><Users size={18}/></div> )} <div className="min-w-0"> <h3 className="font-bold text-slate-300 truncate">{m.name}</h3> <p className="text-xs text-slate-500">Lulusan {m.class.replace('Alumni ', '')}</p> </div> </div> {isSuperAdmin ? ( <div className="flex gap-2 ml-2"> <button onClick={()=>onEdit(m)} className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg transition-colors border border-slate-700"><Edit2 size={14}/></button> <button onClick={()=>onDelete(m.id)} className="p-2 bg-slate-800 hover:bg-slate-700 text-red-400 rounded-lg transition-colors border border-slate-700"><Trash2 size={14}/></button> </div> ) : ( <span className="text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded border border-slate-700">Alumni</span> )} </div> ))} {filteredAlumni.length === 0 && <div className="text-center text-slate-600 mt-10 p-8 border border-dashed border-slate-800 rounded-xl">Data tidak ditemukan.</div>} </div> </div> ) }
         function MemberForm({ isEdit, initialData, classes, onSubmit, onCancel }) { const [form, setForm] = useState(initialData || { name:'', class: classes[0] || '7A', gender:'L', phoneNumber:'', photo: null }); const [showPhotoOptions, setShowPhotoOptions] = useState(false); const [cropImage, setCropImage] = useState(null); const fileInputRef = useRef(null); const cameraInputRef = useRef(null); const handleFileChange = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = () => { setCropImage(reader.result); e.target.value = null; }; reader.readAsDataURL(file); } setShowPhotoOptions(false); }; return ( <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl animate-fade-in"> <h2 className="text-xl font-bold text-cyan-400 mb-6 flex items-center gap-2"> {isEdit ? <Edit2 size={20}/> : <Plus size={20}/>} {isEdit ? 'Edit' : 'Tambah'} Anggota </h2> {cropImage && ( <CropModal imageSrc={cropImage} onCancel={() => setCropImage(null)} onCrop={(croppedDataUrl) => { setForm({...form, photo: croppedDataUrl}); setCropImage(null); }} /> )} <div className="flex justify-center mb-6"> <div className="relative"> <div className="w-24 h-24 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center overflow-hidden cursor-pointer hover:border-cyan-500 transition-colors" onClick={()=>setShowPhotoOptions(!showPhotoOptions)}> {form.photo ? ( <img src={form.photo} className="w-full h-full object-cover" /> ) : ( <Camera size={32} className="text-slate-500"/> )} </div> {showPhotoOptions && ( <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-800 border border-slate-700 rounded-xl p-2 w-40 z-20 shadow-xl flex flex-col gap-2"> <button onClick={()=>cameraInputRef.current.click()} className="flex items-center gap-2 text-xs text-white p-2 hover:bg-slate-700 rounded-lg"> <Camera size={14}/> Buka Kamera </button> <button onClick={()=>fileInputRef.current.click()} className="flex items-center gap-2 text-xs text-white p-2 hover:bg-slate-700 rounded-lg"> <Image size={14}/> Buka Galeri </button> <button onClick={()=>setForm({...form, photo:null})} className="flex items-center gap-2 text-xs text-red-400 p-2 hover:bg-slate-700 rounded-lg"> <Trash2 size={14}/> Hapus Foto </button> </div> )} <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileChange} /> <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} className="hidden" onChange={handleFileChange} /> </div> </div> <div className="space-y-4"> <div> <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Nama Lengkap</label> <input value={form.name} onChange={e=>setForm({...form, name:e.target.value.toUpperCase()})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl uppercase focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700" placeholder="NAMA SISWA" /> </div> <div className="grid grid-cols-2 gap-4"> <div> <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Kelas</label> <select value={form.class} onChange={e=>setForm({...form, class:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors"> {form.isAlumni && <option value={form.class}>{form.class}</option>} {classes.map(c => <option key={c} value={c}>{c}</option>)} </select> </div> <div> <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Gender</label> <select value={form.gender} onChange={e=>setForm({...form, gender:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors"> <option value="L">Laki-laki</option><option value="P">Perempuan</option> </select> </div> </div> <div> <label className="text-xs font-bold text-slate-500 uppercase block mb-1">No. HP</label> <input type="tel" value={form.phoneNumber} onChange={e=>setForm({...form, phoneNumber:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700" placeholder="08..." /> </div> <div className="flex gap-3 mt-6"> <button onClick={onCancel} className="flex-1 py-3 text-slate-400 font-bold border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors">Batal</button> <button onClick={()=>onSubmit(form)} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors">Simpan</button> </div> </div> </div> ) }
-
-        // --- SETTINGS VIEW (UPDATED) ---
-        function SettingsView({ accounts, onDeleteAccount, onUpdateAccount, classes, setClasses, currentUser, onNotify }) {
-            // ... (Accounts & Classes logic)
-            const [newClass, setNewClass] = useState(''); const [newAdmin, setNewAdmin] = useState({u:'', p:''}); const [editingAcc, setEditingAcc] = useState(null); const [editForm, setEditForm] = useState({u:'', p:''}); const [visiblePasswords, setVisiblePasswords] = useState({});
-            const isSuperAdmin = currentUser?.username === 'Respati';
-            const filteredAccounts = isSuperAdmin ? accounts : accounts.filter(a => a.id === currentUser.id);
-            const togglePass = (id) => { setVisiblePasswords(prev => ({...prev, [id]: !prev[id]})); }
-            const addClass = (e) => { e.preventDefault(); if(newClass && !classes.includes(newClass)) { setClasses([...classes, newClass]); setNewClass(''); } };
-            const addAdmin = (e) => { e.preventDefault(); if(newAdmin.u && newAdmin.p) { onUpdateAccount(null, { username: newAdmin.u, password: newAdmin.p, role: 'admin' }); setNewAdmin({u:'', p:''}); } };
-            
-            const startEdit = (acc) => {
-                if (isSuperAdmin) { setEditingAcc(acc.id); setEditForm({u: acc.username, p: acc.password}); }
-                else { setEditingAcc(acc.id); setEditForm({u: acc.username, p: acc.password}); }
-            };
-
-            const saveEdit = (id) => {
-                onUpdateAccount(id, { username: editForm.u, password: editForm.p, role: 'admin' });
-                setEditingAcc(null);
-                // Notify if not super admin
-                if(!isSuperAdmin) {
-                    onNotify('password_change', { admin: currentUser.username });
-                }
-            };
-
-            const handleDelete = (acc) => {
-                if (isSuperAdmin) {
-                    onDeleteAccount(acc.id);
-                }
-            };
-
-            return (
-                <div className="space-y-6 animate-fade-in pb-20">
-                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl"><h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><List size={20}/> Manajemen Kelas</h2><form onSubmit={addClass} className="flex gap-2 mb-4"><input value={newClass} onChange={e=>setNewClass(e.target.value)} className="flex-1 bg-black border border-slate-700 rounded-xl px-4 text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Nama Kelas (Cth: 9C)" /><button className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 rounded-xl font-bold transition-colors"><Plus/></button></form><div className="flex flex-wrap gap-2">{classes.map(c => (<div key={c} className="bg-slate-800 px-3 py-1 rounded-lg text-slate-300 flex items-center gap-2 border border-slate-700">{c} <button type="button" onClick={()=>setClasses(classes.filter(x=>x!==c))} className="text-red-400 hover:text-red-300"><X size={14}/></button></div>))}</div></div>
-                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl"><h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><UserPlus size={20}/> Kelola Admin</h2><div className="space-y-3 mb-6">{filteredAccounts.map(acc => {const isVisible = visiblePasswords[acc.id];return (<div key={acc.id} className="bg-black border border-slate-800 p-3 rounded-xl flex items-center justify-between">{editingAcc === acc.id ? (<div className="flex gap-2 w-full"><input disabled={!isSuperAdmin} value={editForm.u} onChange={e=>setEditForm({...editForm, u:e.target.value})} className={`bg-slate-800 text-white px-2 rounded w-1/3 ${!isSuperAdmin && 'opacity-50'}`} /><input value={editForm.p} onChange={e=>setEditForm({...editForm, p:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" /><button onClick={()=>saveEdit(acc.id)} className="text-green-500"><Check size={18}/></button><button onClick={()=>setEditingAcc(null)} className="text-slate-500"><X size={18}/></button></div>) : (<><div className="text-sm"><div className="font-bold text-slate-300 flex items-center gap-2">{acc.username}{acc.username === 'Respati' && <span className="text-[10px] bg-cyan-900 text-cyan-400 px-1 rounded border border-cyan-700">UTAMA</span>}</div><div className="text-xs text-slate-600 flex items-center gap-2 mt-1">Password: <span className="font-mono bg-slate-800 px-2 py-0.5 rounded text-cyan-400">{isSuperAdmin || acc.id === currentUser.id ? (isVisible ? acc.password : '••••••') : '••••••'}</span><button onClick={() => togglePass(acc.id)} className="text-slate-400 hover:text-white">{isVisible ? <EyeOff size={14}/> : <Eye size={14}/>}</button></div></div><div className="flex gap-2"><button onClick={()=>startEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-400"><Edit2 size={16}/></button>{isSuperAdmin && acc.username !== 'Respati' && (<button onClick={()=>handleDelete(acc)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button>)}</div></>)}</div>)})}</div>{isSuperAdmin && (<div className="pt-4 border-t border-slate-800"><h3 className="text-sm font-bold text-slate-500 mb-3 uppercase">Tambah Admin Baru</h3><form onSubmit={addAdmin} className="space-y-3"><input value={newAdmin.u} onChange={e=>setNewAdmin({...newAdmin, u:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Username Baru" /><input value={newAdmin.p} onChange={e=>setNewAdmin({...newAdmin, p:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Password Baru" /><button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold border border-slate-700 transition-colors">Simpan Admin</button></form></div>)}</div>
-                </div>
-            )
-        }
-
-        // --- MAIN APP LOGIC ---
-        function MainApp() {
-            const { auth, db, appId, error } = useMemo(() => initFirebase(), []);
-            const [user, setUser] = useState(null);
-            const [isLogin, setIsLogin] = useState(false);
-            const [dbStatus, setDbStatus] = useState(error ? 'Error Init' : 'Menghubungkan ke server...');
-            const [dbError, setDbError] = useState(error || null);
-            const [isFullScreen, setIsFullScreen] = useState(false);
-            const [isOnline, setIsOnline] = useState(navigator.onLine);
-            
-            const [members, setMembers] = useState([]);
-            const [attendanceLog, setAttendanceLog] = useState([]);
-            const [accounts, setAccounts] = useState([]);
-            const [classes, setClasses] = useState([]); 
-            const [notifications, setNotifications] = useState([]); // Notifications State
-
-            const [activeTab, setActiveTab] = useState('home');
-            const [editingMember, setEditingMember] = useState(null);
-            const [lastScanned, setLastScanned] = useState(null);
-            const [isDispensationOpen, setIsDispensationOpen] = useState(false);
-            const [showDateSelection, setShowDateSelection] = useState(false);
-            const [tempScannedCode, setTempScannedCode] = useState(null);
-            const [showNotifModal, setShowNotifModal] = useState(false); // Modal Notifikasi
-
-            useEffect(() => {
-                const handleOnline = () => setIsOnline(true);
-                const handleOffline = () => setIsOnline(false);
-                window.addEventListener('online', handleOnline);
-                window.addEventListener('offline', handleOffline);
-                return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
-            }, []);
-
-            useEffect(() => { if (!auth) return; const { signInAnonymously, onAuthStateChanged } = window.firebaseModules; signInAnonymously(auth).then(() => { setDbStatus("Auth Berhasil..."); }).catch((e) => { setDbStatus("Gagal Auth Anonim"); setDbError(e.message); }); const unsubAuth = onAuthStateChanged(auth, (u) => { if (u) {} }); return () => unsubAuth(); }, [auth]);
-            useEffect(() => { 
-                if(!db) return; 
-                const { collection, onSnapshot, addDoc, query, orderBy } = window.firebaseModules; 
-                const unsubMembers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'members'), (snap) => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() })))); 
-                const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), (snap) => setAttendanceLog(snap.docs.map(d => ({ id: d.id, ...d.data() })))); 
-                const unsubAcc = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), (snap) => { let data = snap.docs.map(d => ({ id: d.id, ...d.data() })); if (data.length === 0) { const def = { username: 'Respati', password: '0000', role: 'admin' }; addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def); } setAccounts(data); }); 
-                const unsubClass = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), (snap) => { const data = snap.docs.map(d => d.data().name); if(data.length === 0) { ['7A', '7B', '8A', '8B', '9A', '9B'].forEach(c => addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name: c})); } setClasses(data.sort()); }); 
-                // Listen Notifications
-                const unsubNotif = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snap) => {
-                    const data = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-                    setNotifications(data);
-                });
-                return () => { unsubMembers(); unsubLogs(); unsubAcc(); unsubClass(); unsubNotif(); }; 
-            }, [db]);
-
-            // --- NOTIFICATION ACTIONS ---
-            const handleAddNotification = async (type, data) => {
-                const { addDoc, collection } = window.firebaseModules;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
-                    type, ...data, timestamp: new Date().toISOString()
-                });
-            };
-
-            const handleClearNotifications = async () => {
-                const { deleteDoc, doc } = window.firebaseModules;
-                if(confirm("Hapus semua notifikasi?")) {
-                    notifications.forEach(async (n) => {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id));
-                    });
-                }
-            };
-
-            const handleApproveDelete = async (notif) => {
-                const { deleteDoc, doc } = window.firebaseModules;
-                if(confirm(`Yakin hapus anggota ${notif.memberName}?`)) {
-                    // Delete Member
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', notif.memberId));
-                    // Delete Notification
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', notif.id));
-                    alert("Anggota dihapus.");
-                }
-            };
-
-            // --- REGULAR ACTIONS ---
-            const handleLogin = (u, p) => { if (accounts.length === 0) { alert("Data akun belum dimuat..."); return; } const found = accounts.find(acc => acc.username === u && acc.password === p); if (found) { setUser(found); setIsLogin(true); } else { alert("Username atau Password salah!"); } };
-            const handleLogout = () => { setUser(null); setIsLogin(false); };
-            const handleUpdateAccount = async (id, data) => { const { addDoc, updateDoc, doc, collection } = window.firebaseModules; if(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id), data); } else { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), data); } };
-            const handleDeleteAccount = async (id) => { const { deleteDoc, doc } = window.firebaseModules; if(confirm("Hapus akun ini?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id)); } };
-            const handleAddMember = async (data) => { const { addDoc, collection } = window.firebaseModules; const upperName = data.name.toUpperCase(); const newCode = data.name.substring(0,2).toUpperCase() + Math.floor(Math.random()*1000); const newMember = { barcode: newCode, isAlumni: false, ...data, name: upperName }; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), newMember); setActiveTab('members'); };
-            const handleEditMember = async (data) => { const { updateDoc, doc } = window.firebaseModules; const upperName = data.name.toUpperCase(); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', editingMember.id), { ...data, name: upperName }); setEditingMember(null); setActiveTab('members'); };
-            const handleDeleteMember = async (id) => { const { deleteDoc, doc } = window.firebaseModules; if(confirm("Hapus data ini permanen?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', id)); } };
-            
-            // New Request Delete Logic
-            const handleRequestDelete = async (member) => {
-                if(confirm("Kirim permintaan hapus ke Admin Utama?")) {
-                    await handleAddNotification('delete_request', {
-                        admin: user.username,
-                        memberName: member.name,
-                        memberId: member.id
-                    });
-                    alert("Permintaan terkirim.");
-                }
-            };
-
-            const handlePromoteClass = async () => { /* ... */ const { updateDoc, doc } = window.firebaseModules; if (!confirm("Yakin naikkan kelas semua siswa?")) return; members.forEach(async (m) => { if (m.isAlumni) return; let updates = {}; if (m.class.includes('9')) { updates = { isAlumni: true, class: `Alumni ${new Date().getFullYear()}` }; } else if (m.class.includes('8')) { updates = { class: m.class.replace('8', '9') }; } else if (m.class.includes('7')) { updates = { class: m.class.replace('7', '8') }; } if(Object.keys(updates).length > 0) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', m.id), updates); } }); alert("Proses berjalan..."); };
-            const handleAddClass = async (name) => { const { addDoc, collection } = window.firebaseModules; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name}); };
-            const handleDeleteClass = async (name) => { const { getDocs, query, where, collection, deleteDoc, doc } = window.firebaseModules; const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), where("name", "==", name)); const snap = await getDocs(q); snap.forEach(async (d) => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes_config', d.id)); }); };
-            const handleDispensationSave = async (selectedIds) => { const { addDoc, collection } = window.firebaseModules; const now = new Date(); const todayStr = now.toISOString().split('T')[0]; const timestamp = now.toISOString(); const promises = selectedIds.map(async (id) => { const already = attendanceLog.some(l => l.memberId === id && l.timestamp.startsWith(todayStr)); if(!already) { return addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), { memberId: id, timestamp: timestamp, status: 'dispensation' }); } }); await Promise.all(promises); setIsDispensationOpen(false); alert("Data Dispensasi Disimpan."); };
-
-            // Scan Logic
-            const handleScanResult = (decodedText) => {
-                const member = members.find(m => m.barcode === decodedText);
-                if (!member) { alert("Data siswa tidak ditemukan!"); return; }
-                if (member.isAlumni) { alert("Alumni tidak bisa absen."); return; }
-                if (user.username === 'Respati') { setTempScannedCode(decodedText); setShowDateSelection(true); } 
-                else { const now = new Date(); if (now.getDay() !== 6) { alert("Absensi hanya bisa dilakukan hari Sabtu!"); return; } confirmAttendance(now, member); }
-            };
-            const confirmAttendance = async (dateObj, memberObj = null) => {
-                const { addDoc, collection } = window.firebaseModules;
-                let targetMember = memberObj;
-                if (!targetMember && tempScannedCode) { targetMember = members.find(m => m.barcode === tempScannedCode); }
-                if (targetMember) {
-                    const dateStr = dateObj.toISOString().split('T')[0];
-                    const already = attendanceLog.some(l => l.memberId === targetMember.id && l.timestamp.startsWith(dateStr));
-                    setLastScanned({ status: already ? 'warning' : 'success', member: targetMember, time: dateObj, isSaturday: dateObj.getDay() === 6 });
-                    if (!already) { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), { memberId: targetMember.id, timestamp: dateObj.toISOString() }); }
-                }
-                setTempScannedCode(null); setShowDateSelection(false);
-            };
-
-            const toggleFullScreen = () => { if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); setIsFullScreen(true); } else { if (document.exitFullscreen) { document.exitFullscreen(); setIsFullScreen(false); } } };
-
-            if (!isLogin) return <LoginView onLogin={handleLogin} status={dbStatus} dbError={dbError} />;
-
-            return (
-                <div className="min-h-screen bg-black text-slate-200 max-w-md mx-auto shadow-2xl relative flex flex-col border-x border-slate-800">
-                    <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-20 flex justify-between items-center">
-                        <div className="flex flex-col"><h1 className="text-lg font-bold text-white flex items-center gap-2">E-Absensi Respati 24</h1><span className={`text-[10px] font-bold px-2 py-0.5 rounded w-fit ${isOnline ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span></div>
-                        <div className="flex gap-2">
-                            {activeTab !== 'home' && (<button onClick={() => setActiveTab('home')} className="p-2 bg-slate-800 rounded-full text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={18}/></button>)}
-                            <button onClick={toggleFullScreen} className="p-2 bg-slate-800 text-slate-400 rounded-full hover:bg-slate-700 transition-colors">{isFullScreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button>
-                            <button onClick={handleLogout} className="p-2 bg-red-900/30 text-red-400 rounded-full hover:bg-red-900/50 transition-colors"><LogOut size={18}/></button>
-                        </div>
-                    </header>
-
-                    <main className="flex-1 overflow-y-auto pb-24 p-4">
-                        {activeTab === 'home' && (
-                            <div className="flex flex-col gap-4 animate-fade-in">
-                                <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 p-4 rounded-2xl relative overflow-hidden">
-                                    <p className="text-xs text-cyan-400 font-bold uppercase tracking-widest">Admin Panel</p>
-                                    <p className="text-lg font-bold text-white">Halo, {user.username}</p>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 opacity-50"><Users size={48}/></div>
-                                </div>
-                                <button onClick={() => setActiveTab('scanner')} className="bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-lg flex flex-col items-center text-white active:scale-95 transition-transform"><Camera size={48} className="mb-2"/><span className="text-2xl font-bold tracking-widest">SCAN MASUK</span><span className="text-xs opacity-75 mt-1 bg-black/20 px-3 py-1 rounded-full">Mode Kamera</span></button>
-                                <button onClick={() => setIsDispensationOpen(true)} className="bg-slate-800 border border-slate-700 p-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors"><Clipboard size={24} className="text-cyan-400"/><span className="font-bold text-white">Input Dispensasi</span></button>
-                                <div className="grid grid-cols-1 gap-3">
-                                    <MenuButton icon={<Users/>} label="Data Anggota" desc="Kelola siswa & status" onClick={()=>setActiveTab('members')} />
-                                    <MenuButton icon={<FileText/>} label="Laporan" desc="Rekap kehadiran" onClick={()=>setActiveTab('report')} />
-                                    <MenuButton icon={<Settings/>} label="Pengaturan" desc="Akun & Kelas" onClick={()=>setActiveTab('settings')} />
-                                    {/* NOTIFICATION BUTTON (Super Admin Only) */}
-                                    {user.username === 'Respati' && (
-                                        <MenuButton icon={<Bell/>} label="Notifikasi" desc="Permintaan & Log" onClick={()=>setShowNotifModal(true)} badge={notifications.length} />
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'scanner' && (<ScannerComponent onScan={handleScanResult} lastScanned={lastScanned} onConfirm={() => setLastScanned(null)} onCancel={()=>setLastScanned(null)} />)}
-                        {activeTab === 'members' && (<MembersList members={members} attendanceLog={attendanceLog} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} onAdd={()=>setActiveTab('addMember')} onPromote={handlePromoteClass} onViewAlumni={()=>setActiveTab('alumni')} classes={classes} currentUser={user} onRequestDelete={handleRequestDelete} />)}
-                        {activeTab === 'alumni' && (<AlumniList members={members} onBack={()=>setActiveTab('members')} currentUser={user} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} />)}
-                        {(activeTab === 'addMember' || activeTab === 'editMember') && (<MemberForm isEdit={activeTab === 'editMember'} initialData={editingMember} classes={classes} onSubmit={activeTab === 'addMember' ? handleAddMember : handleEditMember} onCancel={()=>{setEditingMember(null); setActiveTab('members');}} />)}
-                        {activeTab === 'report' && (<ReportView members={members} logs={attendanceLog} classes={classes} />)}
-                        {activeTab === 'settings' && (<SettingsView accounts={accounts} onDeleteAccount={handleDeleteAccount} onUpdateAccount={handleUpdateAccount} classes={classes} setClasses={(newClasses) => { if(newClasses.length > classes.length) { const added = newClasses.find(c => !classes.includes(c)); if(added) handleAddClass(added); } else { const removed = classes.find(c => !newClasses.includes(c)); if(removed) handleDeleteClass(removed); } }} currentUser={user} onNotify={handleAddNotification} />)}
-                    
-                        {/* MODALS */}
-                        {isDispensationOpen && <DispensationModal members={members} onSave={handleDispensationSave} onClose={()=>setIsDispensationOpen(false)} />}
-                        {showDateSelection && <DateSelectionModal onConfirm={confirmAttendance} onClose={()=>{setShowDateSelection(false); setTempScannedCode(null);}} />}
-                        {showNotifModal && <NotificationView notifications={notifications} onClear={handleClearNotifications} onHandleDelete={handleApproveDelete} onClose={()=>setShowNotifModal(false)} />}
-                    </main>
-                </div>
-            );
-        }
+        function SettingsView({ accounts, onDeleteAccount, onUpdateAccount, classes, setClasses, currentUser, onNotify, onRequestDeleteClass, onDeleteClass }) { const [newClass, setNewClass] = useState(''); const [newAdmin, setNewAdmin] = useState({u:'', p:''}); const [editingAcc, setEditingAcc] = useState(null); const [editForm, setEditForm] = useState({u:'', p:''}); const [visiblePasswords, setVisiblePasswords] = useState({}); const isSuperAdmin = currentUser?.username === 'Respati'; const filteredAccounts = isSuperAdmin ? accounts : accounts.filter(a => a.id === currentUser.id); const togglePass = (id) => { setVisiblePasswords(prev => ({...prev, [id]: !prev[id]})); } const addClass = (e) => { e.preventDefault(); if(newClass && !classes.includes(newClass)) { setClasses([...classes, newClass]); setNewClass(''); } }; const addAdmin = (e) => { e.preventDefault(); if(newAdmin.u && newAdmin.p) { onUpdateAccount(null, { username: newAdmin.u, password: newAdmin.p, role: 'admin' }); setNewAdmin({u:'', p:''}); } }; const startEdit = (acc) => { if (isSuperAdmin) { setEditingAcc(acc.id); setEditForm({u: acc.username, p: acc.password}); } else { setEditingAcc(acc.id); setEditForm({u: acc.username, p: acc.password}); } }; const saveEdit = (id) => { onUpdateAccount(id, { username: editForm.u, password: editForm.p, role: 'admin' }); setEditingAcc(null); if(!isSuperAdmin) { onNotify('password_change', { admin: currentUser.username }); } }; const handleDelete = (acc) => { if (isSuperAdmin) { onDeleteAccount(acc.id); } }; const handleDeleteClassClick = (className) => { if (isSuperAdmin) { onDeleteClass(className); } else { onRequestDeleteClass(className); } }; return ( <div className="space-y-6 animate-fade-in pb-20"> <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl"><h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><List size={20}/> Manajemen Kelas</h2><form onSubmit={addClass} className="flex gap-2 mb-4"><input value={newClass} onChange={e=>setNewClass(e.target.value)} className="flex-1 bg-black border border-slate-700 rounded-xl px-4 text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Nama Kelas (Cth: 9C)" /><button className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 rounded-xl font-bold transition-colors"><Plus/></button></form><div className="flex flex-wrap gap-2">{classes.map(c => (<div key={c} className="bg-slate-800 px-3 py-1 rounded-lg text-slate-300 flex items-center gap-2 border border-slate-700">{c} <button type="button" onClick={()=>handleDeleteClassClick(c)} className="text-red-400 hover:text-red-300"><X size={14}/></button></div>))}</div></div> <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl"><h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><UserPlus size={20}/> Kelola Admin</h2><div className="space-y-3 mb-6">{filteredAccounts.map(acc => {const isVisible = visiblePasswords[acc.id];return (<div key={acc.id} className="bg-black border border-slate-800 p-3 rounded-xl flex items-center justify-between">{editingAcc === acc.id ? (<div className="flex gap-2 w-full"><input disabled={!isSuperAdmin} value={editForm.u} onChange={e=>setEditForm({...editForm, u:e.target.value})} className={`bg-slate-800 text-white px-2 rounded w-1/3 ${!isSuperAdmin && 'opacity-50'}`} /><input value={editForm.p} onChange={e=>setEditForm({...editForm, p:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" /><button onClick={()=>saveEdit(acc.id)} className="text-green-500"><Check size={18}/></button><button onClick={()=>setEditingAcc(null)} className="text-slate-500"><X size={18}/></button></div>) : (<><div className="text-sm"><div className="font-bold text-slate-300 flex items-center gap-2">{acc.username}{acc.username === 'Respati' && <span className="text-[10px] bg-cyan-900 text-cyan-400 px-1 rounded border border-cyan-700">UTAMA</span>}</div><div className="text-xs text-slate-600 flex items-center gap-2 mt-1">Password: <span className="font-mono bg-slate-800 px-2 py-0.5 rounded text-cyan-400">{isSuperAdmin || acc.id === currentUser.id ? (isVisible ? acc.password : '••••••') : '••••••'}</span><button onClick={() => togglePass(acc.id)} className="text-slate-400 hover:text-white">{isVisible ? <EyeOff size={14}/> : <Eye size={14}/>}</button></div></div><div className="flex gap-2"><button onClick={()=>startEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-400"><Edit2 size={16}/></button>{isSuperAdmin && acc.username !== 'Respati' && (<button onClick={()=>handleDelete(acc)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button>)}</div></>)}</div>)})}</div>{isSuperAdmin && (<div className="pt-4 border-t border-slate-800"><h3 className="text-sm font-bold text-slate-500 mb-3 uppercase">Tambah Admin Baru</h3><form onSubmit={addAdmin} className="space-y-3"><input value={newAdmin.u} onChange={e=>setNewAdmin({...newAdmin, u:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Username Baru" /><input value={newAdmin.p} onChange={e=>setNewAdmin({...newAdmin, p:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Password Baru" /><button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold border border-slate-700 transition-colors">Simpan Admin</button></form></div>)}</div> </div> ) }
+        function MainApp() { const { auth, db, appId, error } = useMemo(() => initFirebase(), []); const [user, setUser] = useState(null); const [isLogin, setIsLogin] = useState(false); const [dbStatus, setDbStatus] = useState(error ? 'Error Init' : 'Menghubungkan ke server...'); const [dbError, setDbError] = useState(error || null); const [isFullScreen, setIsFullScreen] = useState(false); const [isOnline, setIsOnline] = useState(navigator.onLine); const [members, setMembers] = useState([]); const [attendanceLog, setAttendanceLog] = useState([]); const [accounts, setAccounts] = useState([]); const [classes, setClasses] = useState([]); const [notifications, setNotifications] = useState([]); const [activeTab, setActiveTab] = useState('home'); const [editingMember, setEditingMember] = useState(null); const [lastScanned, setLastScanned] = useState(null); const [isDispensationOpen, setIsDispensationOpen] = useState(false); const [showDateSelection, setShowDateSelection] = useState(false); const [tempScannedCode, setTempScannedCode] = useState(null); const [showNotifModal, setShowNotifModal] = useState(false); const [isManualOpen, setIsManualOpen] = useState(false); useEffect(() => { const handleOnline = () => setIsOnline(true); const handleOffline = () => setIsOnline(false); window.addEventListener('online', handleOnline); window.addEventListener('offline', handleOffline); return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); }; }, []); useEffect(() => { if (!auth) return; const { signInAnonymously, onAuthStateChanged } = window.firebaseModules; signInAnonymously(auth).then(() => { setDbStatus("Auth Berhasil..."); }).catch((e) => { setDbStatus("Gagal Auth Anonim"); setDbError(e.message); }); const unsubAuth = onAuthStateChanged(auth, (u) => { if (u) {} }); return () => unsubAuth(); }, [auth]); useEffect(() => { if(!db) return; const { collection, onSnapshot, addDoc, query, orderBy } = window.firebaseModules; const unsubMembers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'members'), (snap) => setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() })))); const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), (snap) => setAttendanceLog(snap.docs.map(d => ({ id: d.id, ...d.data() })))); const unsubAcc = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), (snap) => { let data = snap.docs.map(d => ({ id: d.id, ...d.data() })); if (data.length === 0) { const def = { username: 'Respati', password: '0000', role: 'admin' }; addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def); } setAccounts(data); }); const unsubClass = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), (snap) => { const data = snap.docs.map(d => d.data().name); if(data.length === 0) { ['7A', '7B', '8A', '8B', '9A', '9B'].forEach(c => addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name: c})); } setClasses(data.sort()); }); const unsubNotif = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), (snap) => { const data = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)); setNotifications(data); }); return () => { unsubMembers(); unsubLogs(); unsubAcc(); unsubClass(); unsubNotif(); }; }, [db]); const handleAddNotification = async (type, data) => { const { addDoc, collection } = window.firebaseModules; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), { type, ...data, timestamp: new Date().toISOString() }); }; const handleClearNotifications = async () => { const { deleteDoc, doc } = window.firebaseModules; if(confirm("Hapus semua notifikasi?")) { notifications.forEach(async (n) => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', n.id)); }); } }; const handleApproveRequest = async (notif) => { const { deleteDoc, doc, getDocs, collection, query, where } = window.firebaseModules; if(notif.type === 'delete_request') { if(confirm(`Yakin hapus anggota ${notif.memberName}?`)) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', notif.memberId)); await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', notif.id)); alert("Anggota dihapus."); } } else if(notif.type === 'delete_class_request') { if(confirm(`Yakin hapus kelas ${notif.className}?`)) { const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), where("name", "==", notif.className)); const snap = await getDocs(q); snap.forEach(async (d) => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes_config', d.id)); }); await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'notifications', notif.id)); alert("Kelas dihapus."); } } }; const handleLogin = (u, p) => { if (accounts.length === 0) { alert("Data akun belum dimuat..."); return; } const found = accounts.find(acc => acc.username === u && acc.password === p); if (found) { setUser(found); setIsLogin(true); } else { alert("Username atau Password salah!"); } }; const handleLogout = () => { setUser(null); setIsLogin(false); }; const handleUpdateAccount = async (id, data) => { const { addDoc, updateDoc, doc, collection } = window.firebaseModules; if(id) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id), data); } else { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), data); } }; const handleDeleteAccount = async (id) => { const { deleteDoc, doc } = window.firebaseModules; if(confirm("Hapus akun ini?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id)); } }; const handleAddMember = async (data) => { const { addDoc, collection } = window.firebaseModules; const upperName = data.name.toUpperCase(); const newCode = data.name.substring(0,2).toUpperCase() + Math.floor(Math.random()*1000); const newMember = { barcode: newCode, isAlumni: false, ...data, name: upperName }; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), newMember); setActiveTab('members'); }; const handleEditMember = async (data) => { const { updateDoc, doc } = window.firebaseModules; const upperName = data.name.toUpperCase(); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', editingMember.id), { ...data, name: upperName }); setEditingMember(null); setActiveTab('members'); }; const handleDeleteMember = async (id) => { const { deleteDoc, doc } = window.firebaseModules; if(confirm("Hapus data ini permanen?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', id)); } }; const handleRequestDelete = async (member) => { if(confirm("Kirim permintaan hapus ke Admin Utama?")) { await handleAddNotification('delete_request', { admin: user.username, memberName: member.name, memberId: member.id }); alert("Permintaan terkirim."); } }; const handleRequestDeleteClass = async (className) => { if(confirm("Kirim permintaan hapus kelas ke Admin Utama?")) { await handleAddNotification('delete_class_request', { admin: user.username, className: className }); alert("Permintaan hapus kelas dikirim."); } }; const handlePromoteClass = async () => { const { updateDoc, doc } = window.firebaseModules; if (!confirm("Yakin naikkan kelas semua siswa?")) return; members.forEach(async (m) => { if (m.isAlumni) return; let updates = {}; if (m.class.includes('9')) { updates = { isAlumni: true, class: `Alumni ${new Date().getFullYear()}` }; } else if (m.class.includes('8')) { updates = { class: m.class.replace('8', '9') }; } else if (m.class.includes('7')) { updates = { class: m.class.replace('7', '8') }; } if(Object.keys(updates).length > 0) { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', m.id), updates); } }); alert("Proses berjalan..."); }; const handleAddClass = async (name) => { const { addDoc, collection } = window.firebaseModules; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name}); }; const handleDeleteClass = async (name) => { const { getDocs, query, where, collection, deleteDoc, doc } = window.firebaseModules; const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), where("name", "==", name)); const snap = await getDocs(q); snap.forEach(async (d) => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes_config', d.id)); }); }; const handleDispensationSave = async (selectedIds) => { const { addDoc, collection } = window.firebaseModules; const now = new Date(); const todayStr = now.toISOString().split('T')[0]; const timestamp = now.toISOString(); const promises = selectedIds.map(async (id) => { const already = attendanceLog.some(l => l.memberId === id && l.timestamp.startsWith(todayStr)); if(!already) { return addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), { memberId: id, timestamp: timestamp, status: 'dispensation' }); } }); await Promise.all(promises); setIsDispensationOpen(false); alert("Data Dispensasi Disimpan."); }; 
+            const handleManualSave = async (selectedIds) => { const { addDoc, collection } = window.firebaseModules; const now = new Date(); const todayStr = now.toISOString().split('T')[0]; const timestamp = now.toISOString(); const promises = selectedIds.map(async (id) => { const already = attendanceLog.some(l => l.memberId === id && l.timestamp.startsWith(todayStr)); if(!already) { return addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), { memberId: id, timestamp: timestamp }); } }); await Promise.all(promises); setIsManualOpen(false); alert("Data Absensi Manual Disimpan."); };
+            const handleScanResult = (decodedText) => { const member = members.find(m => m.barcode === decodedText); if (!member) { alert("Data siswa tidak ditemukan!"); return; } if (member.isAlumni) { alert("Alumni tidak bisa absen."); return; } if (user.username === 'Respati') { setTempScannedCode(decodedText); setShowDateSelection(true); } else { const now = new Date(); if (now.getDay() !== 6) { alert("Absensi hanya bisa dilakukan hari Sabtu!"); return; } confirmAttendance(now, member); } }; const confirmAttendance = async (dateObj, memberObj = null) => { const { addDoc, collection } = window.firebaseModules; let targetMember = memberObj; if (!targetMember && tempScannedCode) { targetMember = members.find(m => m.barcode === tempScannedCode); } if (targetMember) { const dateStr = dateObj.toISOString().split('T')[0]; const already = attendanceLog.some(l => l.memberId === targetMember.id && l.timestamp.startsWith(dateStr)); setLastScanned({ status: already ? 'warning' : 'success', member: targetMember, time: dateObj, isSaturday: dateObj.getDay() === 6 }); if (!already) { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), { memberId: targetMember.id, timestamp: dateObj.toISOString() }); } } setTempScannedCode(null); setShowDateSelection(false); }; const toggleFullScreen = () => { if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); setIsFullScreen(true); } else { if (document.exitFullscreen) { document.exitFullscreen(); setIsFullScreen(false); } } }; if (!isLogin) return <LoginView onLogin={handleLogin} status={dbStatus} dbError={dbError} />; return ( <div className="min-h-screen bg-black text-slate-200 max-w-md mx-auto shadow-2xl relative flex flex-col border-x border-slate-800"> <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-20 flex justify-between items-center"> <div className="flex flex-col"><h1 className="text-lg font-bold text-white flex items-center gap-2">E-Absensi Respati 24</h1><span className={`text-[10px] font-bold px-2 py-0.5 rounded w-fit ${isOnline ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>{isOnline ? 'ONLINE' : 'OFFLINE'}</span></div> <div className="flex gap-2"> {activeTab !== 'home' && (<button onClick={() => setActiveTab('home')} className="p-2 bg-slate-800 rounded-full text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={18}/></button>)} <button onClick={toggleFullScreen} className="p-2 bg-slate-800 text-slate-400 rounded-full hover:bg-slate-700 transition-colors">{isFullScreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button> <button onClick={handleLogout} className="p-2 bg-red-900/30 text-red-400 rounded-full hover:bg-red-900/50 transition-colors"><LogOut size={18}/></button> </div> </header> <main className="flex-1 overflow-y-auto pb-24 p-4"> {activeTab === 'home' && ( <div className="flex flex-col gap-4 animate-fade-in"> <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 p-4 rounded-2xl relative overflow-hidden"> <p className="text-xs text-cyan-400 font-bold uppercase tracking-widest">Admin Panel</p> <p className="text-lg font-bold text-white">Halo, {user.username}</p> <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 opacity-50"><Users size={48}/></div> </div> <button onClick={() => setActiveTab('scanner')} className="bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-lg flex flex-col items-center text-white active:scale-95 transition-transform"><Camera size={48} className="mb-2"/><span className="text-2xl font-bold tracking-widest">SCAN MASUK</span><span className="text-xs opacity-75 mt-1 bg-black/20 px-3 py-1 rounded-full">Mode Kamera</span></button> <button onClick={() => setIsManualOpen(true)} className="bg-slate-800 border border-slate-700 p-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors"><UserCheck size={24} className="text-green-400"/><span className="font-bold text-white">Absen Manual</span></button> <button onClick={() => setIsDispensationOpen(true)} className="bg-slate-800 border border-slate-700 p-4 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-700 transition-colors"><Clipboard size={24} className="text-cyan-400"/><span className="font-bold text-white">Input Dispensasi</span></button> <div className="grid grid-cols-1 gap-3"> <MenuButton icon={<Users/>} label="Data Anggota" desc="Kelola siswa & status" onClick={()=>setActiveTab('members')} /> <MenuButton icon={<FileText/>} label="Laporan" desc="Rekap kehadiran" onClick={()=>setActiveTab('report')} /> <MenuButton icon={<Settings/>} label="Pengaturan" desc="Akun & Kelas" onClick={()=>setActiveTab('settings')} /> {user.username === 'Respati' && ( <MenuButton icon={<Bell/>} label="Notifikasi" desc="Permintaan & Log" onClick={()=>setShowNotifModal(true)} badge={notifications.length} /> )} </div> </div> )} {activeTab === 'scanner' && (<ScannerComponent onScan={handleScanResult} lastScanned={lastScanned} onConfirm={() => setLastScanned(null)} onCancel={()=>setLastScanned(null)} />)} {activeTab === 'members' && (<MembersList members={members} attendanceLog={attendanceLog} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} onAdd={()=>setActiveTab('addMember')} onPromote={handlePromoteClass} onViewAlumni={()=>setActiveTab('alumni')} classes={classes} currentUser={user} onRequestDelete={handleRequestDelete} />)} {activeTab === 'alumni' && (<AlumniList members={members} onBack={()=>setActiveTab('members')} currentUser={user} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} />)} {(activeTab === 'addMember' || activeTab === 'editMember') && (<MemberForm isEdit={activeTab === 'editMember'} initialData={editingMember} classes={classes} onSubmit={activeTab === 'addMember' ? handleAddMember : handleEditMember} onCancel={()=>{setEditingMember(null); setActiveTab('members');}} />)} {activeTab === 'report' && (<ReportView members={members} logs={attendanceLog} classes={classes} />)} {activeTab === 'settings' && ( <SettingsView accounts={accounts} onDeleteAccount={handleDeleteAccount} onUpdateAccount={handleUpdateAccount} classes={classes} setClasses={(newClasses) => { if(newClasses.length > classes.length) { const added = newClasses.find(c => !classes.includes(c)); if(added) handleAddClass(added); } }} onDeleteClass={handleDeleteClass} onRequestDeleteClass={handleRequestDeleteClass} currentUser={user} onNotify={handleAddNotification} /> )} {isDispensationOpen && <StudentSelectionModal members={members} onSave={handleDispensationSave} onClose={()=>setIsDispensationOpen(false)} title="Input Dispensasi" actionLabel="Simpan Dispensasi" />} {isManualOpen && <StudentSelectionModal members={members} onSave={handleManualSave} onClose={()=>setIsManualOpen(false)} title="Absen Manual" actionLabel="Simpan Hadir" />} {showDateSelection && <DateSelectionModal onConfirm={confirmAttendance} onClose={()=>{setShowDateSelection(false); setTempScannedCode(null);}} />} {showNotifModal && <NotificationView notifications={notifications} onClear={handleClearNotifications} onHandleDelete={handleApproveRequest} onClose={()=>setShowNotifModal(false)} />} </main> </div> ); }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<MainApp />);

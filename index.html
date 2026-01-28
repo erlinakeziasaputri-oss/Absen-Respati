@@ -17,16 +17,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
-    <!-- BARCODE SCANNER LIB -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- NEW SCANNER ENGINE: ZXing (Zebra Crossing) -->
+    <script type="text/javascript" src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 
-    <!-- FIREBASE SDK (Module Scripts for React) -->
+    <!-- FIREBASE SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, setDoc, getDoc, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Expose Firebase to Global Scope for React Component
         window.firebaseModules = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, setDoc, getDoc, where, getDocs, writeBatch };
     </script>
 
@@ -41,6 +40,37 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+
+        /* Scanner Overlay */
+        .scanner-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border-style: solid;
+            border-color: rgba(0, 0, 0, 0.6);
+            border-width: 100px 40px; 
+            pointer-events: none;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        .scan-line {
+            width: 100%;
+            height: 2px;
+            background: #06b6d4;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            box-shadow: 0 0 10px #06b6d4;
+            animation: scanMove 2s infinite linear;
+        }
+        @keyframes scanMove {
+            0% { top: 10%; opacity: 0; }
+            50% { opacity: 1; }
+            100% { top: 90%; opacity: 0; }
+        }
+        video {
+            object-fit: cover;
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
 <body>
@@ -55,7 +85,6 @@
             if (!window.firebaseModules) return null;
             const { initializeApp, getAuth, getFirestore } = window.firebaseModules;
             
-            // KONFIGURASI SESUAI PERMINTAAN ANDA
             const firebaseConfig = {
                 apiKey: "AIzaSyByW3uTI5jFFA0OvkYHBkePHOqcHydWjD8",
                 authDomain: "absensi-respati.firebaseapp.com",
@@ -69,7 +98,7 @@
                 const app = initializeApp(firebaseConfig);
                 const auth = getAuth(app);
                 const db = getFirestore(app);
-                const appId = 'respati-app-production'; // ID Konsisten
+                const appId = 'respati-app-production'; 
                 return { auth, db, appId };
             } catch (err) {
                 console.error("Firebase Init Failed", err);
@@ -107,10 +136,12 @@
             Phone: (props) => <IconBase {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></IconBase>,
             ArrowUpDown: (props) => <IconBase {...props}><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></IconBase>,
             Search: (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>,
-            Info: (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconBase>
+            Info: (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></IconBase>,
+            Maximize: (props) => <IconBase {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 1 2-2v-3"/></IconBase>,
+            Minimize: (props) => <IconBase {...props}><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></IconBase>
         };
 
-        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info } = Icons;
+        const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search, Info, Maximize, Minimize } = Icons;
 
         // --- BARCODE GENERATOR MANUAL ---
         const drawCode128 = (canvas, text) => {
@@ -148,7 +179,7 @@
             ctx.fillText(text, width/2, height - 15);
         };
 
-        // --- LOGIN VIEW (DIAGNOSTIC MODE) ---
+        // --- LOGIN VIEW ---
         function LoginView({ onLogin, status, dbError, onForceAdmin }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
@@ -166,7 +197,6 @@
                             <p className="text-slate-400 text-sm mt-2">Login Administrator Online</p>
                         </div>
                         
-                        {/* DIAGNOSTIC PANEL */}
                         <div className={`mb-6 p-3 rounded-xl border text-xs font-mono ${dbError ? 'bg-red-900/30 border-red-800 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
                             <div className="flex items-center gap-2 mb-1">
                                 <Info size={14}/> <strong>STATUS DATABASE:</strong>
@@ -187,7 +217,6 @@
                             <button className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg mt-6 active:scale-95 transition-transform">MASUK ONLINE</button>
                         </form>
 
-                        {/* EMERGENCY BUTTON - HANYA MUNCUL JIKA DATABASE SIAP TAPI AKUN KOSONG/ERROR */}
                         <div className="mt-8 text-center border-t border-slate-800 pt-4">
                             <p className="text-xs text-slate-500 mb-2">Masih gagal login?</p>
                             <button onClick={onForceAdmin} className="text-xs bg-slate-800 hover:bg-slate-700 text-cyan-400 px-3 py-2 rounded-lg transition-colors border border-slate-700">
@@ -213,102 +242,89 @@
             )
         }
 
-        // --- SCANNER COMPONENT (Auto-Stop Fix & Format Locked) ---
+        // --- SCANNER COMPONENT (Auto-Focus Removed) ---
         function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
             const [manualCode, setManualCode] = useState('');
             const [cameraError, setCameraError] = useState('');
-            const scannerRef = useRef(null);
-            const isScanningRef = useRef(false);
+            const [scannedTextDisplay, setScannedTextDisplay] = useState('');
+            const videoRef = useRef(null);
+            const codeReaderRef = useRef(null);
 
             useEffect(() => {
-                const elementId = "reader";
-                
-                const startScanner = async () => {
-                    if (!window.Html5Qrcode) return;
-                    if (lastScanned) return; 
+                if(lastScanned) return; // Stop if modal open
 
+                const startZXing = async () => {
                     try {
-                        if (scannerRef.current) {
-                            if(isScanningRef.current) {
-                                await scannerRef.current.stop().catch(err => {});
-                            }
-                            scannerRef.current.clear();
-                        }
-
-                        // --- PERBAIKAN: KUNCI FORMAT KE CODE 128 & QR ---
-                        // Ini akan mencegah scanner membaca noise sebagai angka acak
-                        const config = {
-                            formatsToSupport: [
-                                window.Html5QrcodeSupportedFormats.CODE_128,
-                                window.Html5QrcodeSupportedFormats.QR_CODE
-                            ],
-                            verbose: false
-                        };
+                        const { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } = ZXing;
                         
-                        const html5QrCode = new window.Html5Qrcode(elementId, config);
-                        scannerRef.current = html5QrCode;
+                        const hints = new Map();
+                        const formats = [BarcodeFormat.CODE_128, BarcodeFormat.QR_CODE];
+                        hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
 
-                        await html5QrCode.start(
-                            { facingMode: "environment" },
-                            { 
-                                fps: 10, 
-                                qrbox: { width: 300, height: 150 }, // Ubah aspect ratio jadi persegi panjang
-                                aspectRatio: 1.0 
-                            },
-                            (decodedText) => {
-                                isScanningRef.current = false;
-                                html5QrCode.stop().then(() => {
-                                    html5QrCode.clear();
-                                    onScan(decodedText);
-                                }).catch(err => onScan(decodedText));
-                            },
-                            (errorMessage) => {}
-                        );
-                        isScanningRef.current = true;
-                        setCameraError(""); 
+                        const codeReader = new BrowserMultiFormatReader(hints);
+                        codeReaderRef.current = codeReader;
+
+                        const videoInputDevices = await codeReader.listVideoInputDevices();
+                        const backCamera = videoInputDevices.find(device => device.label.toLowerCase().includes('back') || device.label.toLowerCase().includes('environment'));
+                        const selectedDeviceId = backCamera ? backCamera.deviceId : videoInputDevices[0].deviceId;
+
+                        await codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
+                            if (result) {
+                                const text = result.getText();
+                                setScannedTextDisplay(text); 
+                                if(text.length < 3) return; 
+
+                                codeReader.reset();
+                                onScan(text);
+                            }
+                        });
+                        setCameraError('');
                     } catch (err) {
-                        setCameraError("Gagal akses kamera. Gunakan Input Manual.");
-                        isScanningRef.current = false;
+                        console.error(err);
+                        setCameraError("Gagal akses kamera (Pastikan Izin Diberikan).");
                     }
                 };
 
-                const timer = setTimeout(startScanner, 300);
+                startZXing();
 
                 return () => {
-                    clearTimeout(timer);
-                    if (scannerRef.current && isScanningRef.current) {
-                        scannerRef.current.stop().then(() => {
-                            scannerRef.current.clear();
-                        }).catch(err => {});
-                        isScanningRef.current = false;
+                    if (codeReaderRef.current) {
+                        codeReaderRef.current.reset();
                     }
                 };
             }, [lastScanned]);
 
-            const handleCloseModal = () => { onCancel(); };
-
             return (
                 <div className="flex flex-col h-full bg-black relative animate-fade-in">
                     <div className="flex-1 bg-black flex flex-col items-center justify-center relative overflow-hidden rounded-xl border border-slate-800 m-4">
-                        <div id="reader" className="w-full h-full bg-black rounded-xl overflow-hidden"></div>
+                        <video ref={videoRef} className="w-full h-full object-cover" />
+                        
+                        <div className="scanner-overlay">
+                            <div className="scan-line"></div>
+                        </div>
+
+                        {scannedTextDisplay && !lastScanned && (
+                            <div className="absolute bottom-10 bg-black/50 text-cyan-400 px-4 py-2 rounded-full backdrop-blur font-mono text-xs border border-cyan-500/30">
+                                Mendeteksi: {scannedTextDisplay}...
+                            </div>
+                        )}
+
                         {cameraError && (
                             <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 text-center p-6 z-10">
                                 <div>
                                     <Camera size={48} className="mx-auto mb-4 text-red-500" />
-                                    <p className="text-white font-bold">Kamera Tidak Aktif</p>
+                                    <p className="text-white font-bold">Kamera Error</p>
                                     <p className="text-xs text-slate-400 mt-2">{cameraError}</p>
                                 </div>
                             </div>
                         )}
-                        <div className="absolute inset-0 pointer-events-none border-2 border-cyan-500/30 rounded-xl z-0">
-                            <div className="w-full h-1 bg-cyan-500/50 absolute top-1/2 shadow-[0_0_15px_rgba(6,182,212,0.8)]"></div>
-                        </div>
                     </div>
 
                     <div className="p-4 bg-slate-900 border-t border-slate-800">
+                        {/* AUTO FOCUS REMOVED FROM INPUT */}
                         <form onSubmit={(e)=>{e.preventDefault(); onScan(manualCode); setManualCode('');}} className="flex gap-2">
-                            <input autoFocus value={manualCode} onChange={e=>setManualCode(e.target.value.toUpperCase())} className="flex-1 bg-black border border-slate-700 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 font-mono text-center tracking-widest placeholder:tracking-normal" placeholder="Input Kode Barcode..." />
-                            <button className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 rounded-xl font-bold transition-colors">SCAN</button>
+                            <input value={manualCode} onChange={e=>setManualCode(e.target.value.toUpperCase())} className="flex-1 bg-black border border-slate-700 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 font-mono text-center tracking-widest placeholder:tracking-normal" placeholder="Input Manual (Cth: RA001)" />
+                            <button className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 rounded-xl font-bold transition-colors">CEK</button>
                         </form>
                     </div>
 
@@ -319,8 +335,11 @@
                                     <>
                                         <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 border border-red-900/50"><X size={32}/></div>
                                         <h3 className="text-xl font-bold text-white">Tidak Ditemukan</h3>
-                                        <p className="text-slate-400 mt-2 font-mono bg-black/50 p-2 rounded border border-slate-700">{lastScanned.text}</p>
-                                        <button onClick={handleCloseModal} className="mt-6 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-colors">Tutup</button>
+                                        <p className="text-slate-400 mt-2 font-mono bg-black/50 p-2 rounded border border-slate-700 text-sm">
+                                            Kode: {lastScanned.text}
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-2">Pastikan barcode tidak terpotong / buram.</p>
+                                        <button onClick={onCancel} className="mt-6 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-colors">Scan Ulang</button>
                                     </>
                                 ) : (
                                     <>
@@ -332,7 +351,7 @@
                                         {!lastScanned.isSaturday && <div className="text-xs bg-red-900/50 text-red-200 p-2 rounded mb-2 border border-red-900/50">Peringatan: Hari ini bukan Sabtu</div>}
                                         {lastScanned.status === 'warning' && <div className="text-xs bg-orange-900/50 text-orange-200 p-2 rounded mb-4 border border-orange-900/50">Sudah absen hari ini.</div>}
                                         <div className="flex gap-3 mt-4">
-                                            <button onClick={handleCloseModal} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-bold transition-colors">Batal</button>
+                                            <button onClick={onCancel} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-bold transition-colors">Batal</button>
                                             {lastScanned.status !== 'warning' && (
                                                 <button onClick={onConfirm} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-500/30 transition-colors">HADIR</button>
                                             )}
@@ -346,6 +365,7 @@
             )
         }
 
+        // --- LIST COMPONENTS (Unchanged) ---
         function MembersList({ members, attendanceLog, onEdit, onDelete, onAdd, onPromote, onViewAlumni }) {
             const [filterClass, setFilterClass] = useState('all');
             const [sortOrder, setSortOrder] = useState('az');
@@ -771,19 +791,18 @@
             )
         }
 
-        // --- SETTINGS VIEW (UPDATED: EDIT/DELETE ACCOUNT) ---
-        function SettingsView({ accounts, onDeleteAccount, onUpdateAccount, classes, setClasses }) {
+        // --- SETTINGS VIEW (UPDATED: SECURE ADMIN MGMT) ---
+        function SettingsView({ accounts, onDeleteAccount, onUpdateAccount, classes, setClasses, currentUser }) {
             const [newClass, setNewClass] = useState('');
             const [newAdmin, setNewAdmin] = useState({u:'', p:''});
             const [editingAcc, setEditingAcc] = useState(null); // id of account being edited
             const [editForm, setEditForm] = useState({u:'', p:''});
 
+            const isSuperAdmin = currentUser?.username === 'Respati';
+
             const addClass = (e) => {
                 e.preventDefault();
                 if(newClass && !classes.includes(newClass)) {
-                    // Update Firestore Logic here handled by parent via setClasses prop if local state
-                    // In Full Firebase version, this should update doc
-                    // For now keeping consistent with prop passing
                     setClasses([...classes, newClass]);
                     setNewClass('');
                 }
@@ -797,14 +816,38 @@
                 }
             };
 
+            const handleSecureAction = (account, actionCallback) => {
+                // Jika Super Admin (Respati), langsung eksekusi
+                if (isSuperAdmin) {
+                    actionCallback();
+                    return;
+                }
+                
+                // Jika Admin biasa, minta verifikasi password akun TARGET
+                const pwd = prompt(`Keamanan: Masukkan password untuk akun ${account.username} untuk melanjutkan:`);
+                if (pwd === account.password) {
+                    actionCallback();
+                } else {
+                    alert("Password Salah! Akses Ditolak.");
+                }
+            };
+
             const startEdit = (acc) => {
-                setEditingAcc(acc.id);
-                setEditForm({u: acc.username, p: acc.password});
+                handleSecureAction(acc, () => {
+                    setEditingAcc(acc.id);
+                    setEditForm({u: acc.username, p: acc.password});
+                });
             };
 
             const saveEdit = (id) => {
                 onUpdateAccount(id, { username: editForm.u, password: editForm.p, role: 'admin' });
                 setEditingAcc(null);
+            };
+
+            const handleDelete = (acc) => {
+                handleSecureAction(acc, () => {
+                    onDeleteAccount(acc.id);
+                });
             };
 
             return (
@@ -842,11 +885,17 @@
                                         <>
                                             <div className="text-sm">
                                                 <div className="font-bold text-slate-300">{acc.username}</div>
-                                                <div className="text-xs text-slate-600">Password: {acc.password}</div>
+                                                <div className="text-xs text-slate-600 flex items-center gap-2">
+                                                    Password: 
+                                                    {/* Hide Password Logic */}
+                                                    <span className="font-mono bg-slate-800 px-1 rounded">
+                                                        {isSuperAdmin ? acc.password : '••••••'}
+                                                    </span>
+                                                </div>
                                             </div>
                                             <div className="flex gap-2">
                                                 <button onClick={()=>startEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-400"><Edit2 size={16}/></button>
-                                                <button onClick={()=>onDeleteAccount(acc.id)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button>
+                                                <button onClick={()=>handleDelete(acc)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button>
                                             </div>
                                         </>
                                     )}
@@ -878,6 +927,7 @@
             const [isLogin, setIsLogin] = useState(false);
             const [dbStatus, setDbStatus] = useState(error ? 'Error Init' : 'Menghubungkan ke server...');
             const [dbError, setDbError] = useState(error || null);
+            const [isFullScreen, setIsFullScreen] = useState(false);
             
             // Data Collections
             const [members, setMembers] = useState([]);
@@ -889,18 +939,25 @@
             const [editingMember, setEditingMember] = useState(null);
             const [lastScanned, setLastScanned] = useState(null);
 
+            // --- FULL SCREEN HANDLER ---
+            const toggleFullScreen = () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                    setIsFullScreen(true);
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                        setIsFullScreen(false);
+                    }
+                }
+            };
+
             // --- AUTH & DATA SYNC ---
             useEffect(() => {
                 if (!auth) return;
 
-                // 1. Auth Listener
                 const { signInAnonymously, onAuthStateChanged } = window.firebaseModules;
                 
-                // Helper untuk create default jika kosong
-                const checkAndCreateDefault = async (dbInstance) => {
-                     // Ini hanya dijalankan jika user menekan tombol 'Force Create' atau jika fetch berhasil tapi kosong
-                };
-
                 signInAnonymously(auth).then(() => {
                     setDbStatus("Auth Berhasil, Membaca Data...");
                 }).catch((e) => {
@@ -1148,6 +1205,10 @@
                             {activeTab !== 'home' && (
                                 <button onClick={() => setActiveTab('home')} className="p-2 bg-slate-800 rounded-full text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={18}/></button>
                             )}
+                            {/* FULL SCREEN TOGGLE */}
+                            <button onClick={toggleFullScreen} className="p-2 bg-slate-800 text-slate-400 rounded-full hover:bg-slate-700 transition-colors">
+                                {isFullScreen ? <Minimize size={18}/> : <Maximize size={18}/>}
+                            </button>
                             <button onClick={handleLogout} className="p-2 bg-red-900/30 text-red-400 rounded-full hover:bg-red-900/50 transition-colors"><LogOut size={18}/></button>
                         </div>
                     </header>
@@ -1224,6 +1285,7 @@
                                         if(removed) handleDeleteClass(removed);
                                     }
                                 }}
+                                currentUser={user}
                             />
                         )}
                     </main>

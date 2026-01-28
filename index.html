@@ -20,95 +20,113 @@
     <!-- BARCODE SCANNER LIB -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
-    <!-- FIREBASE SDK (Module Scripts for React) -->
+    <!-- FIREBASE SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, setDoc, getDoc, where, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Expose Firebase to Global Scope for React Component
-        window.firebaseModules = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, setDoc, getDoc };
+        window.firebaseModules = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, addDoc, doc, updateDoc, deleteDoc, onSnapshot, query, setDoc, getDoc, where, getDocs, writeBatch };
     </script>
 
     <style>
-        /* Custom Styles */
         body { background-color: #000; color: #e2e8f0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <!-- MAIN REACT CODE -->
     <script type="text/babel">
         const { useState, useEffect, useRef, useMemo } = React;
 
-        // --- FIREBASE SETUP ---
+        // --- KONFIGURASI FIREBASE ---
         const initFirebase = () => {
             if (!window.firebaseModules) return null;
             const { initializeApp, getAuth, getFirestore } = window.firebaseModules;
             
-            const firebaseConfig = JSON.parse(__firebase_config);
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-respati-app';
+            let firebaseConfig;
             
-            return { auth, db, appId };
+            // Cek apakah berjalan di lingkungan Preview (Canvas)
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+            } else {
+                // ============================================================
+                // AREA WAJIB DIISI SAAT DEPLOY KE VERCEL / GITHUB
+                // Salin config dari Firebase Console -> Project Settings -> General -> Your apps
+                // ============================================================
+                firebaseConfig = {
+                    apiKey: "ISI_API_KEY_DISINI",           // Contoh: "AIzaSy..."
+                    authDomain: "ISI_AUTH_DOMAIN_DISINI",   // Contoh: "absensi.firebaseapp.com"
+                    projectId: "ISI_PROJECT_ID_DISINI",     // Contoh: "absensi-respati"
+                    storageBucket: "ISI_STORAGE_BUCKET",
+                    messagingSenderId: "ISI_SENDER_ID",
+                    appId: "ISI_APP_ID"
+                };
+            }
+
+            // Validasi apakah user sudah mengisi config
+            if (firebaseConfig.apiKey === "ISI_API_KEY_DISINI") {
+                return null; // Config belum diisi
+            }
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const db = getFirestore(app);
+                // Gunakan ID app statis jika deploy sendiri
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'e-absensi-production'; 
+                return { auth, db, appId };
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                return null;
+            }
         };
 
-        // --- IKON SVG INTERNAL ---
+        // --- IKON SVG ---
         const IconBase = ({ children, size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
-
         const Icons = {
-            Camera: (props) => <IconBase {...props}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></IconBase>,
-            Users: (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>,
-            FileText: (props) => <IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconBase>,
-            Plus: (props) => <IconBase {...props}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></IconBase>,
-            Check: (props) => <IconBase {...props}><polyline points="20 6 9 17 4 12"/></IconBase>,
-            X: (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>,
-            Trash2: (props) => <IconBase {...props}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></IconBase>,
-            Edit2: (props) => <IconBase {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></IconBase>,
-            QrCode: (props) => <IconBase {...props}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></IconBase>,
-            Download: (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>,
-            ChevronLeft: (props) => <IconBase {...props}><polyline points="15 18 9 12 15 6"/></IconBase>,
-            ChevronRight: (props) => <IconBase {...props}><polyline points="9 18 15 12 9 6"/></IconBase>,
-            Settings: (props) => <IconBase {...props}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></IconBase>,
-            LogOut: (props) => <IconBase {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconBase>,
-            Lock: (props) => <IconBase {...props}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>,
-            UserPlus: (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></IconBase>,
-            List: (props) => <IconBase {...props}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></IconBase>,
-            FileDown: (props) => <IconBase {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></IconBase>,
-            RefreshCw: (props) => <IconBase {...props}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></IconBase>,
-            TrendingUp: (props) => <IconBase {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>,
-            GraduationCap: (props) => <IconBase {...props}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></IconBase>,
-            Phone: (props) => <IconBase {...props}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></IconBase>,
-            ArrowUpDown: (props) => <IconBase {...props}><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></IconBase>,
-            Search: (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>
+            Camera: (p) => <IconBase {...p}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></IconBase>,
+            Users: (p) => <IconBase {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>,
+            FileText: (p) => <IconBase {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></IconBase>,
+            Plus: (p) => <IconBase {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></IconBase>,
+            Check: (p) => <IconBase {...p}><polyline points="20 6 9 17 4 12"/></IconBase>,
+            X: (p) => <IconBase {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>,
+            Trash2: (p) => <IconBase {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></IconBase>,
+            Edit2: (p) => <IconBase {...p}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></IconBase>,
+            QrCode: (p) => <IconBase {...p}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></IconBase>,
+            Download: (p) => <IconBase {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>,
+            ChevronLeft: (p) => <IconBase {...p}><polyline points="15 18 9 12 15 6"/></IconBase>,
+            ChevronRight: (p) => <IconBase {...p}><polyline points="9 18 15 12 9 6"/></IconBase>,
+            Settings: (p) => <IconBase {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></IconBase>,
+            LogOut: (p) => <IconBase {...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></IconBase>,
+            Lock: (p) => <IconBase {...p}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>,
+            UserPlus: (p) => <IconBase {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></IconBase>,
+            List: (p) => <IconBase {...p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></IconBase>,
+            FileDown: (p) => <IconBase {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></IconBase>,
+            RefreshCw: (p) => <IconBase {...p}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></IconBase>,
+            TrendingUp: (p) => <IconBase {...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>,
+            GraduationCap: (p) => <IconBase {...p}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></IconBase>,
+            Phone: (p) => <IconBase {...p}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></IconBase>,
+            ArrowUpDown: (p) => <IconBase {...p}><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></IconBase>,
+            Search: (p) => <IconBase {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></IconBase>
         };
-
         const { Camera, Users, FileText, Plus, Check, X, Trash2, Edit2, QrCode, Download, ChevronLeft, ChevronRight, Settings, LogOut, Lock, UserPlus, List, FileDown, RefreshCw, TrendingUp, GraduationCap, Phone, ArrowUpDown, Search } = Icons;
 
-        // --- BARCODE GENERATOR MANUAL ---
+        // --- BARCODE GEN MANUAL ---
         const drawCode128 = (canvas, text) => {
             if (!canvas || !text) return;
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
-            
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(0, 0, width, height);
             ctx.fillStyle = '#000000';
-
             const bars = [];
             bars.push(2,1,1,2,1,4); 
             for(let i=0; i<text.length; i++) {
@@ -116,156 +134,105 @@
                bars.push((c % 3) + 1, 1, ((c+2) % 3) + 1, 1, 2, 1);
             }
             bars.push(2,3,3,1,1,1,2); 
-
             const totalUnit = bars.reduce((a,b)=>a+b, 0);
             const unitWidth = Math.max(2, Math.floor((width - 40) / totalUnit)); 
             const realWidth = totalUnit * unitWidth;
             let startX = (width - realWidth) / 2;
-
             bars.forEach((w, i) => {
-                if (i % 2 === 0) {
-                    ctx.fillRect(startX, 20, w * unitWidth, height - 60);
-                }
+                if (i % 2 === 0) ctx.fillRect(startX, 20, w * unitWidth, height - 60);
                 startX += w * unitWidth;
             });
-
             ctx.font = 'bold 24px monospace';
             ctx.textAlign = 'center';
             ctx.fillText(text, width/2, height - 15);
         };
 
-        // --- LOGIN VIEW ---
+        // --- COMPONENTS ---
         function LoginView({ onLogin }) {
             const [username, setUsername] = useState('');
             const [password, setPassword] = useState('');
-
             return (
                 <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans relative overflow-hidden">
                     <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-cyan-500/20 rounded-full blur-[80px]"></div>
-                    <div className="absolute bottom-[-10%] right-[-10%] w-64 h-64 bg-blue-600/20 rounded-full blur-[80px]"></div>
-                    <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 w-full max-w-sm p-8 rounded-3xl shadow-2xl animate-fade-in relative z-10">
+                    <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 w-full max-w-sm p-8 rounded-3xl shadow-2xl relative z-10">
                         <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-cyan-500/30">
-                                <Lock className="text-white w-8 h-8" />
-                            </div>
+                            <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-cyan-500/30"><Lock className="text-white w-8 h-8" /></div>
                             <h1 className="text-2xl font-bold text-white tracking-wide">E-ABSENSI RESPATI</h1>
                             <p className="text-slate-400 text-sm mt-2">Login Administrator Online</p>
                         </div>
                         <form onSubmit={(e) => { e.preventDefault(); onLogin(username, password); }} className="space-y-5">
-                            <div>
-                                <label className="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">Username</label>
-                                <input value={username} onChange={e=>setUsername(e.target.value)} className="w-full p-3 bg-slate-800 border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors" placeholder="Masukan ID" />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">Password</label>
-                                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full p-3 bg-slate-800 border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors" placeholder="••••••••" />
-                            </div>
-                            <button className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg mt-6 active:scale-95 transition-transform">MASUK ONLINE</button>
+                            <input value={username} onChange={e=>setUsername(e.target.value)} className="w-full p-3 bg-slate-800 border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors" placeholder="Username" />
+                            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full p-3 bg-slate-800 border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors" placeholder="Password" />
+                            <button className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl shadow-lg mt-6 active:scale-95 transition-transform">MASUK</button>
                         </form>
                     </div>
                 </div>
             );
         }
 
-        // --- MENU BUTTON ---
         function MenuButton({ icon, label, desc, onClick }) {
             return (
                 <button onClick={onClick} className="flex items-center gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/50 transition-all text-left w-full group">
                     <div className="bg-slate-800 p-3 rounded-full text-cyan-400 group-hover:bg-slate-700 transition-colors">{icon}</div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-slate-200">{label}</h3>
-                        <p className="text-xs text-slate-500">{desc}</p>
-                    </div>
+                    <div className="flex-1"><h3 className="font-bold text-slate-200">{label}</h3><p className="text-xs text-slate-500">{desc}</p></div>
                     <ChevronRight className="ml-auto text-slate-600 group-hover:text-cyan-400" size={16} />
                 </button>
             )
         }
 
-        // --- SCANNER COMPONENT (Auto-Stop Fix) ---
-        function ScannerComponent({ onScan, lastScanned, onConfirm, onCancel }) {
+        function ScannerComponent({ onScan, lastScanned, onCancel, onConfirm }) {
             const [manualCode, setManualCode] = useState('');
             const [cameraError, setCameraError] = useState('');
             const scannerRef = useRef(null);
             const isScanningRef = useRef(false);
 
             useEffect(() => {
-                const elementId = "reader";
-                
                 const startScanner = async () => {
                     if (!window.Html5Qrcode) return;
-                    if (lastScanned) return; 
-
+                    if (lastScanned) return;
                     try {
                         if (scannerRef.current) {
-                            if(isScanningRef.current) {
-                                await scannerRef.current.stop().catch(err => {});
-                            }
+                            if(isScanningRef.current) await scannerRef.current.stop().catch(()=>{});
                             scannerRef.current.clear();
                         }
-
-                        const html5QrCode = new window.Html5Qrcode(elementId);
+                        const html5QrCode = new window.Html5Qrcode("reader");
                         scannerRef.current = html5QrCode;
-
-                        await html5QrCode.start(
-                            { facingMode: "environment" },
-                            { fps: 10, qrbox: { width: 250, height: 250 } },
-                            (decodedText) => {
-                                isScanningRef.current = false;
-                                html5QrCode.stop().then(() => {
-                                    html5QrCode.clear();
-                                    onScan(decodedText);
-                                }).catch(err => onScan(decodedText));
-                            },
-                            (errorMessage) => {}
-                        );
+                        await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, (decodedText) => {
+                            isScanningRef.current = false;
+                            html5QrCode.stop().then(() => {
+                                html5QrCode.clear();
+                                onScan(decodedText);
+                            }).catch(()=>onScan(decodedText));
+                        }, ()=>{});
                         isScanningRef.current = true;
-                        setCameraError(""); 
+                        setCameraError("");
                     } catch (err) {
                         setCameraError("Gagal akses kamera. Gunakan Input Manual.");
                         isScanningRef.current = false;
                     }
                 };
-
                 const timer = setTimeout(startScanner, 300);
-
                 return () => {
                     clearTimeout(timer);
                     if (scannerRef.current && isScanningRef.current) {
-                        scannerRef.current.stop().then(() => {
-                            scannerRef.current.clear();
-                        }).catch(err => {});
+                        scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(()=>{});
                         isScanningRef.current = false;
                     }
                 };
             }, [lastScanned]);
 
-            const handleCloseModal = () => { onCancel(); };
-
             return (
                 <div className="flex flex-col h-full bg-black relative animate-fade-in">
                     <div className="flex-1 bg-black flex flex-col items-center justify-center relative overflow-hidden rounded-xl border border-slate-800 m-4">
                         <div id="reader" className="w-full h-full bg-black rounded-xl overflow-hidden"></div>
-                        {cameraError && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 text-center p-6 z-10">
-                                <div>
-                                    <Camera size={48} className="mx-auto mb-4 text-red-500" />
-                                    <p className="text-white font-bold">Kamera Tidak Aktif</p>
-                                    <p className="text-xs text-slate-400 mt-2">{cameraError}</p>
-                                </div>
-                            </div>
-                        )}
-                        <div className="absolute inset-0 pointer-events-none border-2 border-cyan-500/30 rounded-xl z-0">
-                            <div className="w-full h-1 bg-cyan-500/50 absolute top-1/2 shadow-[0_0_15px_rgba(6,182,212,0.8)]"></div>
-                        </div>
+                        {cameraError && <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 text-center p-6 z-10"><div><Camera size={48} className="mx-auto mb-4 text-red-500" /><p className="text-white font-bold">Kamera Tidak Aktif</p><p className="text-xs text-slate-400 mt-2">{cameraError}</p></div></div>}
                     </div>
-
                     <div className="p-4 bg-slate-900 border-t border-slate-800">
                         <form onSubmit={(e)=>{e.preventDefault(); onScan(manualCode); setManualCode('');}} className="flex gap-2">
-                            <input autoFocus value={manualCode} onChange={e=>setManualCode(e.target.value.toUpperCase())} className="flex-1 bg-black border border-slate-700 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 font-mono text-center tracking-widest placeholder:tracking-normal" placeholder="Input Kode Barcode..." />
-                            <button className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 rounded-xl font-bold transition-colors">SCAN</button>
+                            <input autoFocus value={manualCode} onChange={e=>setManualCode(e.target.value.toUpperCase())} className="flex-1 bg-black border border-slate-700 text-white px-4 py-3 rounded-xl outline-none focus:border-cyan-500 font-mono text-center" placeholder="Kode Barcode..." />
+                            <button className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 rounded-xl font-bold">SCAN</button>
                         </form>
                     </div>
-
                     {lastScanned && (
                         <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
                             <div className="bg-slate-800 w-full max-w-sm rounded-2xl p-6 border border-slate-700 text-center shadow-2xl relative">
@@ -274,22 +241,18 @@
                                         <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 border border-red-900/50"><X size={32}/></div>
                                         <h3 className="text-xl font-bold text-white">Tidak Ditemukan</h3>
                                         <p className="text-slate-400 mt-2 font-mono bg-black/50 p-2 rounded border border-slate-700">{lastScanned.text}</p>
-                                        <button onClick={handleCloseModal} className="mt-6 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-colors">Tutup</button>
+                                        <button onClick={onCancel} className="mt-6 w-full py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-colors">Tutup</button>
                                     </>
                                 ) : (
                                     <>
-                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${lastScanned.status==='warning' ? 'bg-orange-500/20 text-orange-500 border-orange-500/30' : 'bg-green-500/20 text-green-500 border-green-500/30'}`}>
-                                            <Check size={32} />
-                                        </div>
+                                        <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border ${lastScanned.status==='warning' ? 'bg-orange-500/20 text-orange-500 border-orange-500/30' : 'bg-green-500/20 text-green-500 border-green-500/30'}`}><Check size={32} /></div>
                                         <h2 className="text-xl font-bold text-white">{lastScanned.member.name}</h2>
                                         <p className="text-cyan-400 mb-4">{lastScanned.member.class}</p>
                                         {!lastScanned.isSaturday && <div className="text-xs bg-red-900/50 text-red-200 p-2 rounded mb-2 border border-red-900/50">Peringatan: Hari ini bukan Sabtu</div>}
                                         {lastScanned.status === 'warning' && <div className="text-xs bg-orange-900/50 text-orange-200 p-2 rounded mb-4 border border-orange-900/50">Sudah absen hari ini.</div>}
                                         <div className="flex gap-3 mt-4">
-                                            <button onClick={handleCloseModal} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-bold transition-colors">Batal</button>
-                                            {lastScanned.status !== 'warning' && (
-                                                <button onClick={onConfirm} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-500/30 transition-colors">HADIR</button>
-                                            )}
+                                            <button onClick={onCancel} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl font-bold transition-colors">Batal</button>
+                                            {lastScanned.status !== 'warning' && <button onClick={onConfirm} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-500/30 transition-colors">HADIR</button>}
                                         </div>
                                     </>
                                 )}
@@ -300,6 +263,9 @@
             )
         }
 
+        // ... Component lain (MembersList, dll) sama seperti sebelumnya, dipersingkat untuk fokus perbaikan ...
+        // Agar file lengkap, saya sertakan full code:
+
         function MembersList({ members, attendanceLog, onEdit, onDelete, onAdd, onPromote, onViewAlumni }) {
             const [filterClass, setFilterClass] = useState('all');
             const [sortOrder, setSortOrder] = useState('az');
@@ -307,10 +273,8 @@
             const [selectedBarcode, setSelectedBarcode] = useState(null);
             const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
-            // LOGIC STATUS KEAKTIFAN
             const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
             const totalEvents = uniqueDates.length;
-
             const getStatus = (memberId) => {
                 if (totalEvents === 0) return { label: 'BARU', color: 'bg-slate-700 text-slate-300 border-slate-600' };
                 const memberEvents = attendanceLog.filter(l => l.memberId === memberId).length;
@@ -321,83 +285,44 @@
                 return { label: 'AKTIF', color: 'bg-green-950 text-green-500 border-green-900' };
             };
 
-            const activeMembers = members
-                .filter(m => !m.isAlumni)
+            const activeMembers = members.filter(m => !m.isAlumni)
                 .filter(m => {
-                    // Search Logic (Realtime)
                     const search = searchQuery.toUpperCase();
                     const matchSearch = m.name.includes(search) || m.class.toUpperCase().includes(search);
                     const matchClass = filterClass === 'all' || m.class.startsWith(filterClass);
                     return matchSearch && matchClass;
                 })
-                .sort((a,b) => {
-                    if (sortOrder === 'az') return a.name.localeCompare(b.name);
-                    if (sortOrder === 'za') return b.name.localeCompare(a.name);
-                    return b.id - a.id; 
-                });
+                .sort((a,b) => sortOrder === 'az' ? a.name.localeCompare(b.name) : sortOrder === 'za' ? b.name.localeCompare(a.name) : b.id - a.id);
 
             return (
                 <div className="space-y-4 animate-fade-in">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-lg font-bold text-white">Daftar Anggota</h2>
-                    </div>
-
-                    {/* Toolbar */}
+                    <div className="flex justify-between items-center"><h2 className="text-lg font-bold text-white">Daftar Anggota</h2></div>
                     <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                         <button onClick={onAdd} className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><Plus size={14}/> Tambah</button>
                         <button onClick={onPromote} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><TrendingUp size={14}/> Naik Kelas</button>
                         <button onClick={onViewAlumni} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><GraduationCap size={14}/> Alumni</button>
                         <button onClick={()=>setIsPdfModalOpen(true)} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 shadow whitespace-nowrap transition-colors"><FileDown size={14}/> PDF Anggota</button>
                     </div>
-
-                    {/* Search & Filter */}
                     <div className="space-y-2">
-                        {/* Search Box */}
                         <div className="relative">
-                            <input 
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Cari nama anggota..."
-                                className="w-full bg-slate-900 border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500 transition-colors"
-                            />
+                            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari nama anggota..." className="w-full bg-slate-900 border border-slate-700 text-white pl-9 pr-4 py-2 rounded-xl text-sm outline-none focus:border-cyan-500 transition-colors" />
                             <div className="absolute left-3 top-2.5 text-slate-500"><Search size={16}/></div>
                         </div>
-
                         <div className="flex justify-between items-center gap-2">
                             <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                                {['all', '7', '8', '9'].map(c => (
-                                    <button key={c} onClick={()=>setFilterClass(c)} className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterClass===c ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>
-                                        {c==='all'?'Semua':`Kls ${c}`}
-                                    </button>
-                                ))}
+                                {['all', '7', '8', '9'].map(c => <button key={c} onClick={()=>setFilterClass(c)} className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors whitespace-nowrap ${filterClass===c ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}>{c==='all'?'Semua':`Kls ${c}`}</button>)}
                             </div>
-                            <div className="relative">
-                                <select value={sortOrder} onChange={e=>setSortOrder(e.target.value)} className="appearance-none bg-slate-900 text-xs text-slate-300 border border-slate-700 rounded-lg pl-3 pr-8 py-1.5 outline-none focus:border-cyan-500">
-                                    <option value="az">A-Z</option>
-                                    <option value="za">Z-A</option>
-                                    <option value="new">Baru</option>
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><ArrowUpDown size={12} /></div>
-                            </div>
+                            <div className="relative"><select value={sortOrder} onChange={e=>setSortOrder(e.target.value)} className="appearance-none bg-slate-900 text-xs text-slate-300 border border-slate-700 rounded-lg pl-3 pr-8 py-1.5 outline-none focus:border-cyan-500"><option value="az">A-Z</option><option value="za">Z-A</option><option value="new">Baru</option></select><div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><ArrowUpDown size={12} /></div></div>
                         </div>
                     </div>
-
-                    {/* LIST */}
                     <div className="space-y-3 pb-20">
                         {activeMembers.map(m => {
                             const status = getStatus(m.id);
                             return (
                                 <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between group hover:border-cyan-500/30 transition-all shadow-sm">
                                     <div className="flex-1 min-w-0 mr-2">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="font-bold text-white truncate text-sm">{m.name}</h3>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2 text-xs mb-1">
-                                            <span className="text-cyan-400 font-bold bg-cyan-950/30 px-1.5 py-0.5 rounded border border-cyan-900/50">{m.class}</span>
-                                            <span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${status.color}`}>
-                                                {status.label}
-                                            </span>
-                                        </div>
+                                        <div className="flex items-center gap-2 mb-1"><h3 className="font-bold text-white truncate text-sm">{m.name}</h3></div>
+                                        <div className="flex flex-wrap gap-2 text-xs mb-1"><span className="text-cyan-400 font-bold bg-cyan-950/30 px-1.5 py-0.5 rounded border border-cyan-900/50">{m.class}</span><span className={`px-1.5 py-0.5 rounded border text-[10px] font-bold ${status.color}`}>{status.label}</span></div>
                                         {m.phoneNumber && <div className="text-slate-500 text-[10px] flex items-center gap-1"><Phone size={10}/> {m.phoneNumber}</div>}
                                     </div>
                                     <div className="flex gap-2 shrink-0">
@@ -410,36 +335,24 @@
                         })}
                         {activeMembers.length === 0 && <div className="text-center text-slate-600 p-8 border border-dashed border-slate-800 rounded-xl">Tidak ada data.</div>}
                     </div>
-
                     {selectedBarcode && <BarcodeModal member={selectedBarcode} onClose={()=>setSelectedBarcode(null)} />}
                     {isPdfModalOpen && <PdfDownloadModal members={members} attendanceLog={attendanceLog} onClose={()=>setIsPdfModalOpen(false)} />}
                 </div>
             );
         }
 
-        // --- PDF DOWNLOAD MODAL (NEW FEATURE) ---
+        // --- SUB COMPONENTS (Modal, Form, Report, Settings, Alumni) ---
         function PdfDownloadModal({ members, attendanceLog, onClose }) {
-            const [selected, setSelected] = useState({
-                cls7: true,
-                cls8: true,
-                cls9: true,
-                alumni: false
-            });
-
-            // Calculate Status Helper (Copied Logic)
-            const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
-            const totalEvents = uniqueDates.length;
-            const getStatusLabel = (memberId) => {
-                if (totalEvents === 0) return 'BARU';
-                const memberEvents = attendanceLog.filter(l => l.memberId === memberId).length;
-                const percentage = (memberEvents / totalEvents) * 100;
-                if (percentage === 0) return 'TIDAK AKTIF';
-                if (percentage < 40) return 'KURANG AKTIF';
-                if (percentage < 70) return 'PASIF';
-                return 'AKTIF';
-            };
-
+            const [selected, setSelected] = useState({ cls7: true, cls8: true, cls9: true, alumni: false });
             const handleDownload = () => {
+                const uniqueDates = [...new Set(attendanceLog.map(l => l.timestamp.split('T')[0]))];
+                const totalEvents = uniqueDates.length;
+                const getStatusLabel = (mid) => {
+                    if (totalEvents === 0) return 'BARU';
+                    const ev = attendanceLog.filter(l => l.memberId === mid).length;
+                    const pct = (ev / totalEvents) * 100;
+                    return pct === 0 ? 'TIDAK AKTIF' : pct < 40 ? 'KURANG AKTIF' : pct < 70 ? 'PASIF' : 'AKTIF';
+                };
                 const dataToPrint = members.filter(m => {
                     if (m.isAlumni) return selected.alumni;
                     if (m.class.includes('7')) return selected.cls7;
@@ -447,729 +360,241 @@
                     if (m.class.includes('9')) return selected.cls9;
                     return false;
                 }).sort((a,b) => a.class.localeCompare(b.class));
-
                 if(dataToPrint.length === 0) return alert("Tidak ada data terpilih");
-
-                const doc = new jspdf.jsPDF('l'); // Landscape
+                const doc = new jspdf.jsPDF('l');
                 doc.text(`Data Anggota E-Absensi Respati`, 14, 15);
                 doc.setFontSize(10);
                 doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 22);
-
                 const head = [['Nama', 'Kelas', 'Gender', 'No. HP', 'Status']];
-                const body = dataToPrint.map(m => [
-                    m.name,
-                    m.class,
-                    m.gender,
-                    m.phoneNumber || '-',
-                    getStatusLabel(m.id)
-                ]);
-
-                doc.autoTable({
-                    head,
-                    body,
-                    startY: 28,
-                    headStyles: { fillColor: [8, 145, 178] },
-                    styles: { fontSize: 9 },
-                });
+                const body = dataToPrint.map(m => [m.name, m.class, m.gender, m.phoneNumber || '-', getStatusLabel(m.id)]);
+                doc.autoTable({ head, body, startY: 28, headStyles: { fillColor: [8, 145, 178] }, styles: { fontSize: 9 } });
                 doc.save('Data_Anggota_Respati.pdf');
                 onClose();
             };
-
-            const toggle = (key) => setSelected({...selected, [key]: !selected[key]});
-
+            const toggle = (k) => setSelected({...selected, [k]: !selected[k]});
             return (
-                <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 shadow-2xl">
-                        <h3 className="text-lg font-bold text-white mb-4">Pilih Data Download</h3>
-                        <div className="space-y-3 mb-6">
-                            <div onClick={()=>toggle('cls7')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls7 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls7 && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Kelas 7</span>
-                            </div>
-                            <div onClick={()=>toggle('cls8')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls8 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls8 && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Kelas 8</span>
-                            </div>
-                            <div onClick={()=>toggle('cls9')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls9 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls9 && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Kelas 9</span>
-                            </div>
-                            <div onClick={()=>toggle('alumni')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.alumni ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.alumni && <Check size={14} className="text-white"/>}</div>
-                                <span className="text-slate-300 text-sm">Alumni</span>
-                            </div>
-                        </div>
-                        <div className="flex gap-3">
-                            <button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800">Batal</button>
-                            <button onClick={handleDownload} className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg">Download PDF</button>
-                        </div>
-                    </div>
-                </div>
+                <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in"><div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 shadow-2xl"><h3 className="text-lg font-bold text-white mb-4">Pilih Data Download</h3><div className="space-y-3 mb-6"><div onClick={()=>toggle('cls7')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700"><div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls7 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls7 && <Check size={14} className="text-white"/>}</div><span className="text-slate-300 text-sm">Kelas 7</span></div><div onClick={()=>toggle('cls8')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700"><div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls8 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls8 && <Check size={14} className="text-white"/>}</div><span className="text-slate-300 text-sm">Kelas 8</span></div><div onClick={()=>toggle('cls9')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700"><div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.cls9 ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.cls9 && <Check size={14} className="text-white"/>}</div><span className="text-slate-300 text-sm">Kelas 9</span></div><div onClick={()=>toggle('alumni')} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl cursor-pointer hover:bg-slate-700"><div className={`w-5 h-5 rounded border flex items-center justify-center ${selected.alumni ? 'bg-cyan-600 border-cyan-600' : 'border-slate-500'}`}>{selected.alumni && <Check size={14} className="text-white"/>}</div><span className="text-slate-300 text-sm">Alumni</span></div></div><div className="flex gap-3"><button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800">Batal</button><button onClick={handleDownload} className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg">Download PDF</button></div></div></div>
             )
         }
 
         function AlumniList({ members, onBack }) {
             const alumni = members.filter(m => m.isAlumni);
             return (
-                <div className="space-y-4 animate-fade-in">
-                    <div className="flex items-center gap-2 mb-4">
-                        <button onClick={onBack} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={20}/></button>
-                        <h2 className="text-lg font-bold text-cyan-400">Daftar Alumni</h2>
-                    </div>
-                    {alumni.map(m => (
-                        <div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl opacity-75 flex justify-between items-center">
-                            <div>
-                                <h3 className="font-bold text-slate-300">{m.name}</h3>
-                                <p className="text-xs text-slate-500">{m.class}</p>
-                            </div>
-                            <span className="text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded border border-slate-700">Non-Aktif</span>
-                        </div>
-                    ))}
-                    {alumni.length===0 && <div className="text-center text-slate-600 mt-10 p-8 border border-dashed border-slate-800 rounded-xl">Belum ada alumni.</div>}
-                </div>
+                <div className="space-y-4 animate-fade-in"><div className="flex items-center gap-2 mb-4"><button onClick={onBack} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={20}/></button><h2 className="text-lg font-bold text-cyan-400">Daftar Alumni</h2></div>{alumni.map(m => (<div key={m.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl opacity-75 flex justify-between items-center"><div><h3 className="font-bold text-slate-300">{m.name}</h3><p className="text-xs text-slate-500">{m.class}</p></div><span className="text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded border border-slate-700">Non-Aktif</span></div>))}{alumni.length===0 && <div className="text-center text-slate-600 mt-10 p-8 border border-dashed border-slate-800 rounded-xl">Belum ada alumni.</div>}</div>
             )
         }
 
         function BarcodeModal({ member, onClose }) {
             const canvasRef = useRef(null);
-
-            useEffect(() => {
-                if (canvasRef.current) {
-                    canvasRef.current.width = 320; 
-                    canvasRef.current.height = 160;
-                    drawCode128(canvasRef.current, member.barcode);
-                }
-            }, [member]);
-
-            const download = () => {
-                const link = document.createElement('a');
-                link.download = `BARCODE_${member.name}.png`;
-                link.href = canvasRef.current.toDataURL();
-                link.click();
-            };
-
+            useEffect(() => { if (canvasRef.current) { canvasRef.current.width = 320; canvasRef.current.height = 160; drawCode128(canvasRef.current, member.barcode); } }, [member]);
+            const download = () => { const link = document.createElement('a'); link.download = `BARCODE_${member.name}.png`; link.href = canvasRef.current.toDataURL(); link.click(); };
             return (
-                <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 flex flex-col items-center shadow-2xl">
-                        <h3 className="text-xl font-bold text-white text-center mb-1">{member.name}</h3>
-                        <p className="text-cyan-400 mb-6">{member.class}</p>
-                        
-                        <div className="bg-white p-4 rounded-xl w-full flex justify-center mb-6 shadow-inner">
-                            <canvas ref={canvasRef} style={{maxWidth:'100%', height:'auto'}} />
-                        </div>
-
-                        <div className="flex gap-3 w-full">
-                            <button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800 transition-colors">Tutup</button>
-                            <button onClick={download} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><Download size={16}/> Simpan</button>
-                        </div>
-                    </div>
-                </div>
+                <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-6 backdrop-blur-sm animate-fade-in"><div className="bg-slate-900 w-full max-w-sm p-6 rounded-2xl border border-slate-700 flex flex-col items-center shadow-2xl"><h3 className="text-xl font-bold text-white text-center mb-1">{member.name}</h3><p className="text-cyan-400 mb-6">{member.class}</p><div className="bg-white p-4 rounded-xl w-full flex justify-center mb-6 shadow-inner"><canvas ref={canvasRef} style={{maxWidth:'100%', height:'auto'}} /></div><div className="flex gap-3 w-full"><button onClick={onClose} className="flex-1 py-3 border border-slate-600 text-slate-400 font-bold rounded-xl hover:bg-slate-800 transition-colors">Tutup</button><button onClick={download} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"><Download size={16}/> Simpan</button></div></div></div>
             );
         }
 
         function MemberForm({ isEdit, initialData, classes, onSubmit, onCancel }) {
             const [form, setForm] = useState(initialData || { name:'', class: classes[0] || '7A', gender:'L', phoneNumber:'' });
-
             return (
-                <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl animate-fade-in">
-                    <h2 className="text-xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
-                        {isEdit ? <Edit2 size={20}/> : <Plus size={20}/>} 
-                        {isEdit ? 'Edit' : 'Tambah'} Anggota
-                    </h2>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Nama Lengkap</label>
-                            <input 
-                                value={form.name} 
-                                onChange={e=>setForm({...form, name:e.target.value.toUpperCase()})}
-                                className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl uppercase focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700"
-                                placeholder="NAMA SISWA"
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Kelas</label>
-                                <select 
-                                    value={form.class} 
-                                    onChange={e=>setForm({...form, class:e.target.value})}
-                                    className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors"
-                                >
-                                    {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Gender</label>
-                                <select 
-                                    value={form.gender} 
-                                    onChange={e=>setForm({...form, gender:e.target.value})}
-                                    className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors"
-                                >
-                                    <option value="L">Laki-laki</option>
-                                    <option value="P">Perempuan</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">No. HP</label>
-                            <input 
-                                type="tel"
-                                value={form.phoneNumber} 
-                                onChange={e=>setForm({...form, phoneNumber:e.target.value})}
-                                className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700"
-                                placeholder="08..."
-                            />
-                        </div>
-                        <div className="flex gap-3 mt-6">
-                            <button onClick={onCancel} className="flex-1 py-3 text-slate-400 font-bold border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors">Batal</button>
-                            <button onClick={()=>onSubmit(form)} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors">Simpan</button>
-                        </div>
-                    </div>
-                </div>
+                <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl animate-fade-in"><h2 className="text-xl font-bold text-cyan-400 mb-6 flex items-center gap-2">{isEdit ? <Edit2 size={20}/> : <Plus size={20}/>} {isEdit ? 'Edit' : 'Tambah'} Anggota</h2><div className="space-y-4"><div><label className="text-xs font-bold text-slate-500 uppercase block mb-1">Nama Lengkap</label><input value={form.name} onChange={e=>setForm({...form, name:e.target.value.toUpperCase()})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl uppercase focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700" placeholder="NAMA SISWA"/></div><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-slate-500 uppercase block mb-1">Kelas</label><select value={form.class} onChange={e=>setForm({...form, class:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors">{classes.map(c => <option key={c} value={c}>{c}</option>)}</select></div><div><label className="text-xs font-bold text-slate-500 uppercase block mb-1">Gender</label><select value={form.gender} onChange={e=>setForm({...form, gender:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl outline-none focus:border-cyan-500 transition-colors"><option value="L">Laki-laki</option><option value="P">Perempuan</option></select></div></div><div><label className="text-xs font-bold text-slate-500 uppercase block mb-1">No. HP</label><input type="tel" value={form.phoneNumber} onChange={e=>setForm({...form, phoneNumber:e.target.value})} className="w-full p-3 bg-black border border-slate-700 text-white rounded-xl focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-700" placeholder="08..." /></div><div className="flex gap-3 mt-6"><button onClick={onCancel} className="flex-1 py-3 text-slate-400 font-bold border border-slate-700 rounded-xl hover:bg-slate-800 transition-colors">Batal</button><button onClick={()=>onSubmit(form)} className="flex-1 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl shadow-lg transition-colors">Simpan</button></div></div></div>
             )
         }
 
         function ReportView({ members, logs }) {
             const [currentDate, setCurrentDate] = useState(new Date());
             const activeMembers = members.filter(m => !m.isAlumni);
-
-            const getSaturdays = (date) => {
-                const year = date.getFullYear();
-                const month = date.getMonth();
-                const days = [];
-                let d = new Date(year, month, 1);
-                while(d.getMonth() === month) {
-                    if(d.getDay() === 6) days.push(new Date(d));
-                    d.setDate(d.getDate()+1);
-                }
-                return days;
-            };
+            const getSaturdays = (date) => { const year = date.getFullYear(); const month = date.getMonth(); const days = []; let d = new Date(year, month, 1); while(d.getMonth() === month) { if(d.getDay() === 6) days.push(new Date(d)); d.setDate(d.getDate()+1); } return days; };
             const saturdays = getSaturdays(currentDate);
-
-            const getAttendance = (memberId, dateObj) => {
-                const dateStr = dateObj.toISOString().split('T')[0];
-                return logs.some(l => l.memberId === memberId && l.timestamp.startsWith(dateStr));
-            };
-
-            const downloadPDF = () => {
-                const doc = new jspdf.jsPDF('l');
-                doc.text(`Laporan Absensi - ${currentDate.toLocaleString('default',{month:'long', year:'numeric'})}`, 14, 15);
-                doc.setFontSize(10);
-                doc.text("E-Absensi Respati", 14, 22);
-                
-                const head = [['Nama', 'Kelas', ...saturdays.map(d=>d.getDate())]];
-                const body = activeMembers.map(m => [
-                    m.name, 
-                    m.class, 
-                    ...saturdays.map(d => getAttendance(m.id, d) ? 'H' : '-')
-                ]);
-                
-                doc.autoTable({ 
-                    head, 
-                    body, 
-                    startY: 28,
-                    headStyles: { fillColor: [8, 145, 178] },
-                    styles: { fontSize: 8 },
-                    didParseCell: function(data) {
-                        if (data.section === 'body' && data.column.index > 1) {
-                            if (data.cell.raw === 'H') {
-                                data.cell.styles.fillColor = [34, 197, 94];
-                                data.cell.styles.textColor = [255, 255, 255];
-                            }
-                        }
-                    }
-                });
-                doc.save(`Laporan_${currentDate.toISOString().slice(0,7)}.pdf`);
-            };
-
+            const getAttendance = (memberId, dateObj) => { const dateStr = dateObj.toISOString().split('T')[0]; return logs.some(l => l.memberId === memberId && l.timestamp.startsWith(dateStr)); };
+            const downloadPDF = () => { const doc = new jspdf.jsPDF('l'); doc.text(`Laporan Absensi - ${currentDate.toLocaleString('default',{month:'long', year:'numeric'})}`, 14, 15); doc.setFontSize(10); doc.text("E-Absensi Respati", 14, 22); const head = [['Nama', 'Kelas', ...saturdays.map(d=>d.getDate())]]; const body = activeMembers.map(m => [m.name, m.class, ...saturdays.map(d => getAttendance(m.id, d) ? 'H' : '-')]); doc.autoTable({ head, body, startY: 28, headStyles: { fillColor: [8, 145, 178] }, styles: { fontSize: 8 }, didParseCell: function(data) { if (data.section === 'body' && data.column.index > 1) { if (data.cell.raw === 'H') { data.cell.styles.fillColor = [34, 197, 94]; data.cell.styles.textColor = [255, 255, 255]; } } } }); doc.save(`Laporan_${currentDate.toISOString().slice(0,7)}.pdf`); };
             return (
-                <div className="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-full animate-fade-in shadow-xl">
-                    <div className="p-4 flex justify-between items-center border-b border-slate-800">
-                        <div className="flex gap-2">
-                            <button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={20}/></button>
-                            <div className="text-center px-4">
-                                <h2 className="font-bold text-white">{currentDate.toLocaleString('default',{month:'long', year:'numeric'})}</h2>
-                                <p className="text-xs text-slate-500">{saturdays.length} Sabtu</p>
-                            </div>
-                            <button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronRight size={20}/></button>
-                        </div>
-                        <button onClick={downloadPDF} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex gap-1 transition-colors"><FileDown size={14}/> PDF</button>
-                    </div>
-                    <div className="flex-1 overflow-auto">
-                        <table className="w-full text-xs text-left border-collapse">
-                            <thead className="text-slate-400 bg-slate-900 sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="p-3 border-b border-r border-slate-800 min-w-[120px] sticky left-0 bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Nama</th>
-                                    <th className="p-3 border-b border-r border-slate-800 sticky left-[120px] bg-slate-900 min-w-[50px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Kls</th>
-                                    {saturdays.map(d => <th key={d} className="p-2 border-b border-slate-800 text-center min-w-[30px] font-normal">{d.getDate()}</th>)}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {activeMembers.map(m => (
-                                    <tr key={m.id} className="hover:bg-slate-800/50">
-                                        <td className="p-3 border-b border-r border-slate-800 font-bold text-slate-300 sticky left-0 bg-black min-w-[120px] truncate shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.name}</td>
-                                        <td className="p-3 border-b border-r border-slate-800 text-cyan-500 sticky left-[120px] bg-black shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.class}</td>
-                                        {saturdays.map(d => {
-                                            const isHadir = getAttendance(m.id, d);
-                                            return (
-                                                <td key={d} className="p-2 border-b border-slate-800 text-center">
-                                                    {isHadir ? <div className="w-3 h-3 bg-green-500 rounded-full mx-auto shadow-[0_0_5px_lime]"></div> : <span className="text-slate-700">-</span>}
-                                                </td>
-                                            )
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <div className="bg-slate-900 rounded-xl border border-slate-800 flex flex-col h-full animate-fade-in shadow-xl"><div className="p-4 flex justify-between items-center border-b border-slate-800"><div className="flex gap-2"><button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()-1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={20}/></button><div className="text-center px-4"><h2 className="font-bold text-white">{currentDate.toLocaleString('default',{month:'long', year:'numeric'})}</h2><p className="text-xs text-slate-500">{saturdays.length} Sabtu</p></div><button onClick={()=>setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth()+1)))} className="p-2 bg-slate-800 rounded-lg text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronRight size={20}/></button></div><button onClick={downloadPDF} className="bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-bold flex gap-1 transition-colors"><FileDown size={14}/> PDF</button></div><div className="flex-1 overflow-auto"><table className="w-full text-xs text-left border-collapse"><thead className="text-slate-400 bg-slate-900 sticky top-0 z-10 shadow-sm"><tr><th className="p-3 border-b border-r border-slate-800 min-w-[120px] sticky left-0 bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Nama</th><th className="p-3 border-b border-r border-slate-800 sticky left-[120px] bg-slate-900 min-w-[50px] shadow-[2px_0_5px_rgba(0,0,0,0.5)]">Kls</th>{saturdays.map(d => <th key={d} className="p-2 border-b border-slate-800 text-center min-w-[30px] font-normal">{d.getDate()}</th>)}</tr></thead><tbody>{activeMembers.map(m => (<tr key={m.id} className="hover:bg-slate-800/50"><td className="p-3 border-b border-r border-slate-800 font-bold text-slate-300 sticky left-0 bg-black min-w-[120px] truncate shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.name}</td><td className="p-3 border-b border-r border-slate-800 text-cyan-500 sticky left-[120px] bg-black shadow-[2px_0_5px_rgba(0,0,0,0.5)]">{m.class}</td>{saturdays.map(d => { const isHadir = getAttendance(m.id, d); return (<td key={d} className="p-2 border-b border-slate-800 text-center">{isHadir ? <div className="w-3 h-3 bg-green-500 rounded-full mx-auto shadow-[0_0_5px_lime]"></div> : <span className="text-slate-700">-</span>}</td>) })}</tr>))}</tbody></table></div></div>
             )
         }
 
-        // --- SETTINGS VIEW (UPDATED: EDIT/DELETE ACCOUNT) ---
         function SettingsView({ accounts, onDeleteAccount, onUpdateAccount, classes, setClasses }) {
             const [newClass, setNewClass] = useState('');
             const [newAdmin, setNewAdmin] = useState({u:'', p:''});
-            const [editingAcc, setEditingAcc] = useState(null); // id of account being edited
+            const [editingAcc, setEditingAcc] = useState(null); 
             const [editForm, setEditForm] = useState({u:'', p:''});
-
-            const addClass = (e) => {
-                e.preventDefault();
-                if(newClass && !classes.includes(newClass)) {
-                    // Update Firestore Logic here handled by parent via setClasses prop if local state
-                    // In Full Firebase version, this should update doc
-                    // For now keeping consistent with prop passing
-                    setClasses([...classes, newClass]);
-                    setNewClass('');
-                }
-            };
-
-            const addAdmin = (e) => {
-                e.preventDefault();
-                if(newAdmin.u && newAdmin.p) {
-                    onUpdateAccount(null, { username: newAdmin.u, password: newAdmin.p, role: 'admin' });
-                    setNewAdmin({u:'', p:''});
-                }
-            };
-
-            const startEdit = (acc) => {
-                setEditingAcc(acc.id);
-                setEditForm({u: acc.username, p: acc.password});
-            };
-
-            const saveEdit = (id) => {
-                onUpdateAccount(id, { username: editForm.u, password: editForm.p, role: 'admin' });
-                setEditingAcc(null);
-            };
-
+            const addClass = (e) => { e.preventDefault(); if(newClass && !classes.includes(newClass)) { setClasses([...classes, newClass]); setNewClass(''); } };
+            const addAdmin = (e) => { e.preventDefault(); if(newAdmin.u && newAdmin.p) { onUpdateAccount(null, { username: newAdmin.u, password: newAdmin.p, role: 'admin' }); setNewAdmin({u:'', p:''}); } };
+            const startEdit = (acc) => { setEditingAcc(acc.id); setEditForm({u: acc.username, p: acc.password}); };
+            const saveEdit = (id) => { onUpdateAccount(id, { username: editForm.u, password: editForm.p, role: 'admin' }); setEditingAcc(null); };
             return (
-                <div className="space-y-6 animate-fade-in pb-20">
-                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
-                        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><List size={20}/> Manajemen Kelas</h2>
-                        <form onSubmit={addClass} className="flex gap-2 mb-4">
-                            <input value={newClass} onChange={e=>setNewClass(e.target.value)} className="flex-1 bg-black border border-slate-700 rounded-xl px-4 text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Nama Kelas (Cth: 9C)" />
-                            <button className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 rounded-xl font-bold transition-colors"><Plus/></button>
-                        </form>
-                        <div className="flex flex-wrap gap-2">
-                            {classes.map(c => (
-                                <div key={c} className="bg-slate-800 px-3 py-1 rounded-lg text-slate-300 flex items-center gap-2 border border-slate-700">
-                                    {c} <button type="button" onClick={()=>setClasses(classes.filter(x=>x!==c))} className="text-red-400 hover:text-red-300"><X size={14}/></button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl">
-                        <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><UserPlus size={20}/> Kelola Admin</h2>
-                        
-                        {/* List Existing Accounts */}
-                        <div className="space-y-3 mb-6">
-                            {accounts.map(acc => (
-                                <div key={acc.id} className="bg-black border border-slate-800 p-3 rounded-xl flex items-center justify-between">
-                                    {editingAcc === acc.id ? (
-                                        <div className="flex gap-2 w-full">
-                                            <input value={editForm.u} onChange={e=>setEditForm({...editForm, u:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" />
-                                            <input value={editForm.p} onChange={e=>setEditForm({...editForm, p:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" />
-                                            <button onClick={()=>saveEdit(acc.id)} className="text-green-500"><Check size={18}/></button>
-                                            <button onClick={()=>setEditingAcc(null)} className="text-slate-500"><X size={18}/></button>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="text-sm">
-                                                <div className="font-bold text-slate-300">{acc.username}</div>
-                                                <div className="text-xs text-slate-600">Password: {acc.password}</div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={()=>startEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-400"><Edit2 size={16}/></button>
-                                                <button onClick={()=>onDeleteAccount(acc.id)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Add New */}
-                        <div className="pt-4 border-t border-slate-800">
-                            <h3 className="text-sm font-bold text-slate-500 mb-3 uppercase">Tambah Baru</h3>
-                            <form onSubmit={addAdmin} className="space-y-3">
-                                <input value={newAdmin.u} onChange={e=>setNewAdmin({...newAdmin, u:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Username Baru" />
-                                <input value={newAdmin.p} onChange={e=>setNewAdmin({...newAdmin, p:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Password Baru" />
-                                <button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold border border-slate-700 transition-colors">Simpan Admin</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                <div className="space-y-6 animate-fade-in pb-20"><div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl"><h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><List size={20}/> Manajemen Kelas</h2><form onSubmit={addClass} className="flex gap-2 mb-4"><input value={newClass} onChange={e=>setNewClass(e.target.value)} className="flex-1 bg-black border border-slate-700 rounded-xl px-4 text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Nama Kelas (Cth: 9C)" /><button className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 rounded-xl font-bold transition-colors"><Plus/></button></form><div className="flex flex-wrap gap-2">{classes.map(c => (<div key={c} className="bg-slate-800 px-3 py-1 rounded-lg text-slate-300 flex items-center gap-2 border border-slate-700">{c} <button type="button" onClick={()=>setClasses(classes.filter(x=>x!==c))} className="text-red-400 hover:text-red-300"><X size={14}/></button></div>))}</div></div><div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl"><h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><UserPlus size={20}/> Kelola Admin</h2><div className="space-y-3 mb-6">{accounts.map(acc => (<div key={acc.id} className="bg-black border border-slate-800 p-3 rounded-xl flex items-center justify-between">{editingAcc === acc.id ? (<div className="flex gap-2 w-full"><input value={editForm.u} onChange={e=>setEditForm({...editForm, u:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" /><input value={editForm.p} onChange={e=>setEditForm({...editForm, p:e.target.value})} className="bg-slate-800 text-white px-2 rounded w-1/3" /><button onClick={()=>saveEdit(acc.id)} className="text-green-500"><Check size={18}/></button><button onClick={()=>setEditingAcc(null)} className="text-slate-500"><X size={18}/></button></div>) : (<><div className="text-sm"><div className="font-bold text-slate-300">{acc.username}</div><div className="text-xs text-slate-600">Password: {acc.password}</div></div><div className="flex gap-2"><button onClick={()=>startEdit(acc)} className="p-2 text-slate-400 hover:text-cyan-400"><Edit2 size={16}/></button><button onClick={()=>onDeleteAccount(acc.id)} className="p-2 text-slate-400 hover:text-red-400"><Trash2 size={16}/></button></div></>)}</div>))}</div><div className="pt-4 border-t border-slate-800"><h3 className="text-sm font-bold text-slate-500 mb-3 uppercase">Tambah Baru</h3><form onSubmit={addAdmin} className="space-y-3"><input value={newAdmin.u} onChange={e=>setNewAdmin({...newAdmin, u:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Username Baru" /><input value={newAdmin.p} onChange={e=>setNewAdmin({...newAdmin, p:e.target.value})} className="w-full bg-black border border-slate-700 px-4 py-2 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors" placeholder="Password Baru" /><button className="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-xl font-bold border border-slate-700 transition-colors">Simpan Admin</button></form></div></div></div>
             )
         }
 
-        // --- MAIN APP LOGIC (FIREBASE INTEGRATED) ---
+        // --- MAIN APP (FIREBASE LOGIC) ---
         function MainApp() {
-            // Firebase Refs
-            const { auth, db, appId } = useMemo(() => initFirebase(), []);
+            const fb = useMemo(() => initFirebase(), []);
             
-            // Local State for UI
+            // State
             const [user, setUser] = useState(null);
-            const [isLogin, setIsLogin] = useState(false);
-            
-            // Data Collections
             const [members, setMembers] = useState([]);
             const [attendanceLog, setAttendanceLog] = useState([]);
             const [accounts, setAccounts] = useState([]);
-            const [classes, setClasses] = useState([]); // In Firestore this should be a doc, but simplifying as collection for now or single doc
-
+            const [classes, setClasses] = useState([]);
+            
             const [activeTab, setActiveTab] = useState('home');
             const [editingMember, setEditingMember] = useState(null);
             const [lastScanned, setLastScanned] = useState(null);
 
-            // --- AUTH & DATA SYNC ---
-            useEffect(() => {
-                // 1. Auth Listener
-                const { signInAnonymously, onAuthStateChanged } = window.firebaseModules;
-                signInAnonymously(auth); // Sign in so we can read/write
-                
-                const unsubAuth = onAuthStateChanged(auth, (u) => {
-                    if (u) {
-                        // User is technically 'signed in' to Firebase anonymously
-                        // But app login (admin) is separate logic using 'accounts' collection
-                    }
-                });
-
-                return () => unsubAuth();
-            }, []);
-
-            // 2. Data Listeners (Realtime)
-            useEffect(() => {
-                if(!db) return;
-                const { collection, onSnapshot, doc, getDoc, setDoc } = window.firebaseModules;
-
-                // Listen Members
-                const unsubMembers = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'members'), (snap) => {
-                    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    setMembers(data);
-                });
-
-                // Listen Logs
-                const unsubLogs = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), (snap) => {
-                    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    setAttendanceLog(data);
-                });
-
-                // Listen Accounts
-                const unsubAcc = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), (snap) => {
-                    let data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    if (data.length === 0) {
-                        // Init default admin if empty
-                        const def = { username: 'Respati', password: '0000', role: 'admin' };
-                        addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), def);
-                    }
-                    setAccounts(data);
-                });
-
-                // Listen Classes (Stored as single doc 'list' in 'classes_config' collection for simplicity)
-                // Or separate docs. Let's use separate docs for flexibility
-                const unsubClass = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), (snap) => {
-                    const data = snap.docs.map(d => d.data().name);
-                    if(data.length === 0) {
-                        // Seed defaults
-                        ['7A', '7B', '8A', '8B', '9A', '9B'].forEach(c => {
-                            addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name: c});
-                        });
-                    }
-                    setClasses(data.sort());
-                });
-
-                return () => {
-                    unsubMembers(); unsubLogs(); unsubAcc(); unsubClass();
-                };
-            }, [db]);
-
-            // --- HANDLERS (CRUD via Firestore) ---
-            
-            const handleLogin = (u, p) => {
-                const found = accounts.find(acc => acc.username === u && acc.password === p);
-                if (found) {
-                    setUser(found);
-                    setIsLogin(true);
-                } else {
-                    alert("Username atau Password salah!");
-                }
-            };
-
-            const handleLogout = () => {
-                setUser(null);
-                setIsLogin(false);
-            };
-
-            // ACCOUNTS
-            const handleUpdateAccount = async (id, data) => {
-                const { addDoc, updateDoc, doc, collection } = window.firebaseModules;
-                if(id) {
-                    // Update
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id), data);
-                } else {
-                    // Add
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), data);
-                }
-            };
-
-            const handleDeleteAccount = async (id) => {
-                const { deleteDoc, doc } = window.firebaseModules;
-                if(confirm("Hapus akun ini?")) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id));
-                }
-            };
-
-            // CLASSES
-            const handleUpdateClasses = async (newClassList) => {
-                // Ideally sync diff, but for now simple local state update passed to settings
-                // In full implementation, SettingsView should call addDoc/deleteDoc on classes_config collection
-                // We will patch SettingsView to do this directly? 
-                // Let's pass a handler.
-            };
-
-            const handleSetClasses = async (newClasses) => {
-                // Find diff to determine add/remove. 
-                // Simplifying: This app logic passed 'setClasses' which replaces list. 
-                // Firestore requires add/delete. 
-                // Let's just handle add from the UI for now.
-                // Re-writing SettingsView logic slightly to use direct firestore actions? 
-                // No, lets stick to the props pattern for consistency.
-                
-                // Hacky Sync: Find what's new and add it. Find what's gone and delete it.
-                // A better way for this prototype: Just add new ones. Deletion is tricky without IDs.
-                // We will update SettingsView to handle firestore directly for classes.
+            // Jika config belum diisi (return null dari initFirebase)
+            if (!fb) {
+                return (
+                    <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
+                        <div className="text-white max-w-md">
+                            <h1 className="text-2xl font-bold text-red-500 mb-4">Konfigurasi Belum Selesai</h1>
+                            <p className="text-slate-400 mb-6">Aplikasi belum terhubung ke Firebase.</p>
+                            <div className="text-left bg-slate-900 p-4 rounded-xl border border-slate-700 text-xs font-mono text-cyan-400 overflow-auto">
+                                1. Buka file index.html<br/>2. Cari bagian "KONFIGURASI FIREBASE ANDA"<br/>3. Paste config dari Firebase Console<br/>4. Save & Deploy
+                            </div>
+                        </div>
+                    </div>
+                );
             }
 
-            // MEMBERS
+            const { auth, db, appId } = fb;
+
+            useEffect(() => {
+                const { signInAnonymously, onAuthStateChanged, collection, onSnapshot, addDoc } = window.firebaseModules;
+                signInAnonymously(auth);
+                
+                const unsubAuth = onAuthStateChanged(auth, u => {});
+
+                // Listeners
+                const unsubMem = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'members'), s => setMembers(s.docs.map(d=>({id:d.id,...d.data()}))));
+                const unsubLog = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), s => setAttendanceLog(s.docs.map(d=>({id:d.id,...d.data()}))));
+                const unsubAcc = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), s => {
+                    const d = s.docs.map(d=>({id:d.id,...d.data()}));
+                    if(d.length===0) addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), {username:'Respati', password:'0000', role:'admin'});
+                    setAccounts(d);
+                });
+                const unsubCls = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), s => {
+                    const d = s.docs.map(doc=>doc.data().name);
+                    if(d.length===0) ['7A','7B','8A','8B','9A','9B'].forEach(c=>addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name:c}));
+                    setClasses(d.sort());
+                });
+
+                return () => { unsubAuth(); unsubMem(); unsubLog(); unsubAcc(); unsubCls(); };
+            }, [db]);
+
+            // Handlers
+            const handleLogin = (u, p) => {
+                const found = accounts.find(acc => acc.username === u && acc.password === p);
+                if (found) setUser(found);
+                else alert("Salah Username/Password");
+            };
+
             const generateBarcode = (name) => {
                 let cleanName = name.replace(/[^a-zA-Z]/g, '').toUpperCase();
                 if (cleanName.length < 2) cleanName = (cleanName + "XX").substring(0,2);
                 const prefix = cleanName.substring(0, 2);
-
-                const usedNumbers = members
-                    .filter(m => !m.isAlumni && m.barcode && m.barcode.startsWith(prefix))
-                    .map(m => parseInt(m.barcode.substring(2)) || 0)
-                    .sort((a,b) => a-b);
-
-                let nextNum = 0;
-                for(let num of usedNumbers) {
-                    if (num === nextNum) nextNum++;
-                    else if (num > nextNum) break;
-                }
-                return `${prefix}${String(nextNum).padStart(3, '0')}`;
+                const used = members.filter(m => !m.isAlumni && m.barcode && m.barcode.startsWith(prefix)).map(m => parseInt(m.barcode.substring(2))||0).sort((a,b)=>a-b);
+                let next = 0;
+                for(let n of used) { if(n===next) next++; else if(n>next) break; }
+                return `${prefix}${String(next).padStart(3,'0')}`;
             };
 
             const handleAddMember = async (data) => {
-                const { addDoc, collection } = window.firebaseModules;
                 const upperName = data.name.toUpperCase();
-                const newCode = generateBarcode(upperName);
-                const newMember = { barcode: newCode, isAlumni: false, ...data, name: upperName };
-                
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'members'), newMember);
+                const code = generateBarcode(upperName);
+                await window.firebaseModules.addDoc(window.firebaseModules.collection(db, 'artifacts', appId, 'public', 'data', 'members'), {barcode:code, isAlumni:false, ...data, name:upperName});
                 setActiveTab('members');
             };
 
             const handleEditMember = async (data) => {
-                const { updateDoc, doc } = window.firebaseModules;
-                const upperName = data.name.toUpperCase();
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', editingMember.id), { ...data, name: upperName });
+                await window.firebaseModules.updateDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', 'members', editingMember.id), {...data, name:data.name.toUpperCase()});
                 setEditingMember(null);
                 setActiveTab('members');
             };
 
             const handleDeleteMember = async (id) => {
-                const { deleteDoc, doc, query, where, getDocs, collection, writeBatch } = window.firebaseModules;
-                if(confirm("Hapus data ini permanen?")) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', id));
-                    // Optional: Delete logs
-                }
+                if(confirm("Hapus?")) await window.firebaseModules.deleteDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', 'members', id));
             };
 
-            const handlePromoteClass = async () => {
-                const { updateDoc, doc, writeBatch } = window.firebaseModules;
-                const pwd = prompt("Masukkan Password Kunci:");
-                if (pwd !== "PASS0716307164") return alert("Password Salah!");
-
-                if (!confirm("Yakin naikkan kelas semua siswa?")) return;
-
-                // Batch update is safer
-                // Note: Firestore batch limit is 500. For prototype we iterate.
-                members.forEach(async (m) => {
-                    if (m.isAlumni) return;
-                    let updates = {};
-                    
-                    if (m.class.includes('9')) {
-                        updates = { isAlumni: true, class: `Alumni ${new Date().getFullYear()}` };
-                    } else if (m.class.includes('8')) {
-                        updates = { class: m.class.replace('8', '9') };
-                    } else if (m.class.includes('7')) {
-                        updates = { class: m.class.replace('7', '8') };
-                    }
-                    
-                    if(Object.keys(updates).length > 0) {
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'members', m.id), updates);
-                    }
+            const handlePromote = async () => {
+                if(prompt("Password Kunci:") !== "PASS0716307164") return alert("Salah!");
+                if(!confirm("Yakin naikkan kelas?")) return;
+                members.forEach(async m => {
+                    if(m.isAlumni) return;
+                    let up = {};
+                    if(m.class.includes('9')) up = {isAlumni:true, class:`Alumni ${new Date().getFullYear()}`};
+                    else if(m.class.includes('8')) up = {class:m.class.replace('8','9')};
+                    else if(m.class.includes('7')) up = {class:m.class.replace('7','8')};
+                    if(Object.keys(up).length>0) await window.firebaseModules.updateDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', 'members', m.id), up);
                 });
-                alert("Proses berjalan di background...");
             };
 
-            const handleScanResult = (decodedText) => {
-                const member = members.find(m => m.barcode === decodedText);
+            const handleScan = (txt) => {
+                const m = members.find(x => x.barcode === txt);
                 const now = new Date();
-                const todayStr = now.toISOString().split('T')[0];
-                const isSaturday = now.getDay() === 6;
-
-                if (!member) {
-                    setLastScanned({ status: 'error', text: decodedText, time: now });
-                    return;
-                }
-                if (member.isAlumni) {
-                    alert("Alumni tidak bisa absen.");
-                    return;
-                }
-                const already = attendanceLog.some(l => l.memberId === member.id && l.timestamp.startsWith(todayStr));
-                setLastScanned({ status: already ? 'warning' : 'success', member: member, time: now, isSaturday: isSaturday });
+                const today = now.toISOString().split('T')[0];
+                if(!m) { setLastScanned({status:'error', text:txt}); return; }
+                if(m.isAlumni) { alert("Alumni!"); return; }
+                const done = attendanceLog.some(l => l.memberId === m.id && l.timestamp.startsWith(today));
+                setLastScanned({status: done?'warning':'success', member:m, time:now, isSaturday: now.getDay()===6});
             };
 
-            const confirmAttendance = async () => {
-                const { addDoc, collection } = window.firebaseModules;
-                if (lastScanned?.status === 'success') {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), {
-                        memberId: lastScanned.member.id,
-                        timestamp: lastScanned.time.toISOString()
-                    });
+            const confirmAttend = async () => {
+                if(lastScanned?.status==='success') {
+                    await window.firebaseModules.addDoc(window.firebaseModules.collection(db, 'artifacts', appId, 'public', 'data', 'logs'), {memberId:lastScanned.member.id, timestamp:lastScanned.time.toISOString()});
                 }
                 setLastScanned(null);
             };
 
-            // Custom Class Handler for SettingsView
-            const handleAddClass = async (name) => {
-                const { addDoc, collection } = window.firebaseModules;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name});
+            // Settings Handlers
+            const handleUpdAcc = async (id, d) => {
+                if(id) await window.firebaseModules.updateDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id), d);
+                else await window.firebaseModules.addDoc(window.firebaseModules.collection(db, 'artifacts', appId, 'public', 'data', 'accounts'), d);
             };
-            const handleDeleteClass = async (name) => {
-                // Need to find ID first. 
-                const { getDocs, query, where, collection, deleteDoc, doc } = window.firebaseModules;
-                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), where("name", "==", name));
-                const snap = await getDocs(q);
-                snap.forEach(async (d) => {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes_config', d.id));
-                });
+            const handleDelAcc = async (id) => {
+                if(confirm("Hapus?")) await window.firebaseModules.deleteDoc(window.firebaseModules.doc(db, 'artifacts', appId, 'public', 'data', 'accounts', id));
+            };
+            const handleClassChange = async (newCls) => {
+                // Simplifikasi: Add only
+                const added = newCls.find(c => !classes.includes(c));
+                if(added) await window.firebaseModules.addDoc(window.firebaseModules.collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), {name:added});
+                // Deletion logic requires ID map, skipped for brevity in this block, assumed add-only via UI
+                // Correction: UI calls setClasses with filtered list for delete.
+                // We need to map names to IDs to delete.
+                if(newCls.length < classes.length) {
+                    const removed = classes.find(c => !newCls.includes(c));
+                    if(removed) {
+                        const q = window.firebaseModules.query(window.firebaseModules.collection(db, 'artifacts', appId, 'public', 'data', 'classes_config'), window.firebaseModules.where("name", "==", removed));
+                        const snap = await window.firebaseModules.getDocs(q);
+                        snap.forEach(d => window.firebaseModules.deleteDoc(d.ref));
+                    }
+                }
             };
 
-            if (!isLogin) return <LoginView onLogin={handleLogin} />;
+            if (!user) return <LoginView onLogin={handleLogin} />;
 
             return (
                 <div className="min-h-screen bg-black text-slate-200 max-w-md mx-auto shadow-2xl relative flex flex-col border-x border-slate-800">
                     <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-20 flex justify-between items-center">
-                        <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                            <span className="bg-cyan-600 text-white px-2 py-0.5 rounded text-sm">ONLINE</span> E-Absensi
-                        </h1>
+                        <h1 className="text-lg font-bold text-white flex items-center gap-2"><span className="bg-cyan-600 text-white px-2 py-0.5 rounded text-sm">ONLINE</span> E-Absensi</h1>
                         <div className="flex gap-2">
-                            {activeTab !== 'home' && (
-                                <button onClick={() => setActiveTab('home')} className="p-2 bg-slate-800 rounded-full text-cyan-400 hover:bg-slate-700 transition-colors"><ChevronLeft size={18}/></button>
-                            )}
-                            <button onClick={handleLogout} className="p-2 bg-red-900/30 text-red-400 rounded-full hover:bg-red-900/50 transition-colors"><LogOut size={18}/></button>
+                            {activeTab !== 'home' && <button onClick={() => setActiveTab('home')} className="p-2 bg-slate-800 rounded-full text-cyan-400 hover:bg-slate-700"><ChevronLeft size={18}/></button>}
+                            <button onClick={()=>setUser(null)} className="p-2 bg-red-900/30 text-red-400 rounded-full hover:bg-red-900/50"><LogOut size={18}/></button>
                         </div>
                     </header>
-
                     <main className="flex-1 overflow-y-auto pb-24 p-4">
                         {activeTab === 'home' && (
                             <div className="flex flex-col gap-4 animate-fade-in">
-                                <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 p-4 rounded-2xl relative overflow-hidden">
-                                    <p className="text-xs text-cyan-400 font-bold uppercase tracking-widest">Admin Panel</p>
-                                    <p className="text-lg font-bold text-white">Halo, {user.username}</p>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 opacity-50"><Users size={48}/></div>
-                                </div>
-
-                                <button onClick={() => setActiveTab('scanner')} className="bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-lg flex flex-col items-center text-white active:scale-95 transition-transform">
-                                    <Camera size={48} className="mb-2"/>
-                                    <span className="text-2xl font-bold tracking-widest">SCAN MASUK</span>
-                                    <span className="text-xs opacity-75 mt-1 bg-black/20 px-3 py-1 rounded-full">Mode Kamera</span>
-                                </button>
-
-                                <div className="grid grid-cols-1 gap-3">
-                                    <MenuButton icon={<Users/>} label="Data Anggota" desc="Kelola siswa & status" onClick={()=>setActiveTab('members')} />
-                                    <MenuButton icon={<FileText/>} label="Laporan" desc="Rekap kehadiran" onClick={()=>setActiveTab('report')} />
-                                    <MenuButton icon={<Settings/>} label="Pengaturan" desc="Akun & Kelas" onClick={()=>setActiveTab('settings')} />
-                                </div>
+                                <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 p-4 rounded-2xl relative overflow-hidden"><p className="text-xs text-cyan-400 font-bold uppercase tracking-widest">Admin Panel</p><p className="text-lg font-bold text-white">Halo, {user.username}</p><div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-700 opacity-50"><Users size={48}/></div></div>
+                                <button onClick={() => setActiveTab('scanner')} className="bg-gradient-to-br from-cyan-600 to-blue-700 p-6 rounded-3xl shadow-lg flex flex-col items-center text-white active:scale-95 transition-transform"><Camera size={48} className="mb-2"/><span className="text-2xl font-bold tracking-widest">SCAN MASUK</span><span className="text-xs opacity-75 mt-1 bg-black/20 px-3 py-1 rounded-full">Mode Kamera</span></button>
+                                <div className="grid grid-cols-1 gap-3"><MenuButton icon={<Users/>} label="Data Anggota" desc="Kelola siswa & status" onClick={()=>setActiveTab('members')} /><MenuButton icon={<FileText/>} label="Laporan" desc="Rekap kehadiran" onClick={()=>setActiveTab('report')} /><MenuButton icon={<Settings/>} label="Pengaturan" desc="Akun & Kelas" onClick={()=>setActiveTab('settings')} /></div>
                             </div>
                         )}
-
-                        {activeTab === 'scanner' && (
-                            <ScannerComponent onScan={handleScanResult} lastScanned={lastScanned} onConfirm={confirmAttendance} onCancel={()=>setLastScanned(null)} />
-                        )}
-
-                        {activeTab === 'members' && (
-                            <MembersList 
-                                members={members} 
-                                attendanceLog={attendanceLog}
-                                onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}}
-                                onDelete={handleDeleteMember}
-                                onAdd={()=>setActiveTab('addMember')}
-                                onPromote={handlePromoteClass}
-                                onViewAlumni={()=>setActiveTab('alumni')}
-                            />
-                        )}
-
-                        {activeTab === 'alumni' && (
-                            <AlumniList members={members} onBack={()=>setActiveTab('members')} />
-                        )}
-
-                        {(activeTab === 'addMember' || activeTab === 'editMember') && (
-                            <MemberForm 
-                                isEdit={activeTab === 'editMember'} 
-                                initialData={editingMember}
-                                classes={classes}
-                                onSubmit={activeTab === 'addMember' ? handleAddMember : handleEditMember}
-                                onCancel={()=>{setEditingMember(null); setActiveTab('members');}}
-                            />
-                        )}
-
-                        {activeTab === 'report' && (
-                            <ReportView members={members} logs={attendanceLog} />
-                        )}
-
-                        {activeTab === 'settings' && (
-                            <SettingsView 
-                                accounts={accounts} 
-                                onDeleteAccount={handleDeleteAccount}
-                                onUpdateAccount={handleUpdateAccount}
-                                classes={classes} 
-                                setClasses={(newClasses) => {
-                                    // Identify add/delete. 
-                                    if(newClasses.length > classes.length) {
-                                        // Added
-                                        const added = newClasses.find(c => !classes.includes(c));
-                                        if(added) handleAddClass(added);
-                                    } else {
-                                        // Removed
-                                        const removed = classes.find(c => !newClasses.includes(c));
-                                        if(removed) handleDeleteClass(removed);
-                                    }
-                                }}
-                            />
-                        )}
+                        {activeTab === 'scanner' && <ScannerComponent onScan={handleScan} lastScanned={lastScanned} onConfirm={confirmAttend} onCancel={()=>setLastScanned(null)} />}
+                        {activeTab === 'members' && <MembersList members={members} attendanceLog={attendanceLog} onEdit={(m)=>{setEditingMember(m); setActiveTab('editMember');}} onDelete={handleDeleteMember} onAdd={()=>setActiveTab('addMember')} onPromote={handlePromote} onViewAlumni={()=>setActiveTab('alumni')} />}
+                        {activeTab === 'alumni' && <AlumniList members={members} onBack={()=>setActiveTab('members')} />}
+                        {(activeTab === 'addMember' || activeTab === 'editMember') && <MemberForm isEdit={activeTab === 'editMember'} initialData={editingMember} classes={classes} onSubmit={activeTab === 'addMember' ? handleAddMember : handleEditMember} onCancel={()=>{setEditingMember(null); setActiveTab('members');}} />}
+                        {activeTab === 'report' && <ReportView members={members} logs={attendanceLog} />}
+                        {activeTab === 'settings' && <SettingsView accounts={accounts} onDeleteAccount={handleDelAcc} onUpdateAccount={handleUpdAcc} classes={classes} setClasses={handleClassChange} />}
                     </main>
                 </div>
             );
